@@ -1,0 +1,157 @@
+@if (isOpen) {
+  <div class="panel-overlay" (click)="onClose()">
+    <aside class="panel" (click)="$event.stopPropagation()">
+      <header class="panel-header">
+        <div>
+          <h2>Work Order Details</h2>
+          <p>Specify the dates, name and status for this order</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" (click)="onClose()">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="onSubmit()">{{ actionLabel }}</button>
+        </div>
+      </header>
+
+      <form class="panel-form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        <div class="field-group">
+          <label for="work-order-name">Work Order Name</label>
+          <input id="work-order-name" class="text-input" type="text" formControlName="name" placeholder="Acme Inc.">
+          @if (hasFieldError('name')) {
+            <small class="field-error">Name is required.</small>
+          }
+        </div>
+
+        <div class="field-group">
+          <label for="work-order-status">Status</label>
+          <ng-select
+            id="work-order-status"
+            class="status-select"
+            [items]="statuses"
+            bindLabel="label"
+            bindValue="value"
+            [searchable]="false"
+            [clearable]="false"
+            formControlName="status"
+          >
+            <ng-template ng-label-tmp let-item="item">
+              <span class="status-chip" [ngClass]="statusChipClass(item.value)">{{ item.label }}</span>
+            </ng-template>
+            <ng-template ng-option-tmp let-item="item">
+              <span
+                class="status-option-label"
+                [class.status-option-label--selected]="item.value === form.controls.status.value"
+              >
+                {{ item.label }}
+              </span>
+            </ng-template>
+          </ng-select>
+          @if (hasFieldError('status')) {
+            <small class="field-error">Status is required.</small>
+          }
+        </div>
+
+        <div class="field-group">
+          <label for="work-order-end-date">End date</label>
+          <input
+            id="work-order-end-date"
+            class="text-input form-control"
+            placeholder="yyyy-mm-dd"
+            formControlName="endDate"
+            ngbDatepicker
+            navigation="none"
+            [contentTemplate]="datepickerContent"
+            #endDatePicker="ngbDatepicker"
+            (click)="endDatePicker.toggle()"
+          >
+          @if (hasFieldError('endDate')) {
+            <small class="field-error">End date is required.</small>
+          }
+        </div>
+
+        <div class="field-group">
+          <label for="work-order-start-date">Start date</label>
+          <input
+            id="work-order-start-date"
+            class="text-input form-control"
+            placeholder="yyyy-mm-dd"
+            formControlName="startDate"
+            ngbDatepicker
+            navigation="none"
+            [contentTemplate]="datepickerContent"
+            #startDatePicker="ngbDatepicker"
+            (click)="startDatePicker.toggle()"
+          >
+          @if (hasFieldError('startDate')) {
+            <small class="field-error">Start date is required.</small>
+          }
+        </div>
+
+        @if (form.errors?.['invalidRange']) {
+          <p class="panel-error">End date must be after start date.</p>
+        }
+
+        @if (overlapError) {
+          <p class="panel-error">{{ overlapError }}</p>
+        }
+
+        <div class="work-center-note">
+          Work center: {{ workCenterName || 'Not selected' }}
+        </div>
+
+        <button type="submit" class="hidden-submit">Submit</button>
+      </form>
+    </aside>
+  </div>
+
+  <ng-template #datepickerContent let-datepicker>
+    <div class="datepicker-custom-header">
+      <button
+        type="button"
+        class="datepicker-nav-button"
+        aria-label="Previous month"
+        (click)="shiftPickerMonth(datepicker, -1)"
+      >
+        <span class="datepicker-chevron datepicker-chevron--left" aria-hidden="true"></span>
+      </button>
+
+      <ng-select
+        class="datepicker-nav-select datepicker-nav-select--month"
+        [items]="pickerMonthOptions"
+        bindLabel="label"
+        bindValue="value"
+        [searchable]="false"
+        [clearable]="false"
+        [ngModel]="pickerMonth(datepicker)"
+        [ngModelOptions]="{ standalone: true }"
+        (ngModelChange)="onPickerMonthChange(datepicker, $event)"
+      ></ng-select>
+
+      <ng-select
+        class="datepicker-nav-select datepicker-nav-select--year"
+        [items]="pickerYearOptions"
+        [searchable]="false"
+        [clearable]="false"
+        [ngModel]="pickerYear(datepicker)"
+        [ngModelOptions]="{ standalone: true }"
+        (ngModelChange)="onPickerYearChange(datepicker, $event)"
+      ></ng-select>
+
+      <button
+        type="button"
+        class="datepicker-nav-button"
+        aria-label="Next month"
+        (click)="shiftPickerMonth(datepicker, 1)"
+      >
+        <span class="datepicker-chevron datepicker-chevron--right" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="ngb-dp-months">
+      @for (month of datepicker.state.months; track month.year + '-' + month.month) {
+        <div class="ngb-dp-month">
+          <ngb-datepicker-month [month]="month" />
+        </div>
+      }
+    </div>
+  </ng-template>
+}
