@@ -1,0 +1,188 @@
+<section class="timeline-content">
+  <h1>Work Orders</h1>
+
+  <div class="toolbar">
+    <div class="toolbar-controls">
+      <div class="timescale-selector">
+        <span class="timescale-label">Timescale</span>
+        <ng-select
+          class="timescale-select select--timescale"
+          [items]="timescaleOptions"
+          [bindLabel]="'label'"
+          [bindValue]="'value'"
+          [clearable]="false"
+          [searchable]="false"
+          [ngModel]="timescale()"
+          (ngModelChange)="onSelectTimescale($event)"
+        >
+        </ng-select>
+      </div>
+
+      <div class="timescale-selector selector--year">
+        <span class="timescale-label">Year</span>
+        <ng-select
+          class="timescale-select select--year"
+          [items]="yearOptions"
+          [clearable]="false"
+          [searchable]="false"
+          [ngModel]="selectedYear()"
+          (ngModelChange)="onSelectYear($event)"
+        >
+        </ng-select>
+      </div>
+
+      <div class="timescale-selector selector--month">
+        <span class="timescale-label">Month</span>
+        <ng-select
+          class="timescale-select select--month"
+          [items]="monthOptions"
+          [bindLabel]="'label'"
+          [bindValue]="'value'"
+          [clearable]="false"
+          [searchable]="false"
+          [ngModel]="selectedMonth()"
+          (ngModelChange)="onSelectMonth($event)"
+        >
+        </ng-select>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-shell" #timelineScroll>
+    <div class="timeline-body">
+      <div class="timeline-left-pane">
+        <div class="timeline-row timeline-header-row">
+          <div class="work-center-cell">Work Center</div>
+        </div>
+
+        @for (center of workCenters(); track trackCenter($index, center)) {
+          <div class="timeline-row">
+            <div class="work-center-cell">
+              {{ center.data.name }}
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="timeline-right-pane">
+        <div class="timeline-row timeline-header-row timeline-right-header">
+          <div class="track-cell header-track-viewport">
+            <div
+              #headerTrackContent
+              class="header-track-content"
+              [style.width.px]="timelineWidth()"
+            >
+              @for (column of columns(); track column.index) {
+                <div
+                  class="header-column"
+                  [style.left.px]="column.left"
+                  [style.width.px]="column.width"
+                  [class.current-header-column]="isCurrentColumn(column.index)"
+                >
+                  @if (timescale() === 'day') {
+                    <div class="header-label-date">{{ column.label }}</div>
+                    <div class="header-label-weekday">{{ weekdayLabel(column.startDate) }}</div>
+                  } @else {
+                    {{ column.label }}
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-scroll-pane" #timelineHorizontalScroll>
+          <div class="timeline-grid" [style.width.px]="timelineWidth()">
+            @if (isTodayVisible()) {
+              <div class="today-guide" [style.left.px]="todayX()"></div>
+            }
+
+            @for (center of workCenters(); track trackCenter($index, center)) {
+              <div
+                class="timeline-row"
+                (mouseenter)="onHoverCenter(center.docId)"
+                (mouseleave)="onHoverCenter(null)"
+              >
+                <div class="track-cell" [style.width.px]="timelineWidth()" (click)="onTrackClick($event, center.docId)">
+                  @for (column of columns(); track column.index) {
+                    <div class="track-column" [style.left.px]="column.left" [style.width.px]="column.width"></div>
+                  }
+
+                  @if (hoveredCenterId() === center.docId) {
+                    <div class="hover-hint">Click to add dates</div>
+                  }
+
+                  @for (order of getOrdersForCenter(center.docId); track trackOrder($index, order)) {
+                    @if (isOrderVisible(order)) {
+                      <div
+                        class="work-order-card"
+                        [class.work-order-card--month]="timescale() === 'month'"
+                        [ngClass]="statusClass(order.data.status)"
+                        [ngStyle]="orderStyle(order)"
+                        [title]="order.data.name"
+                        (click)="onOrderCardClick($event, order)"
+                      >
+                        @if (timescale() !== 'month') {
+                          <span class="order-name">{{ order.data.name }}</span>
+                          <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
+
+                          <div class="work-order-menu" (click)="$event.stopPropagation()">
+                            <button
+                              type="button"
+                              class="menu-trigger"
+                              [class.active]="activeMenuOrderId() === order.docId"
+                              (click)="onToggleOrderMenu($event, order.docId)"
+                              aria-label="Open order actions"
+                            >
+                              <span></span>
+                              <span></span>
+                              <span></span>
+                            </button>
+
+                            @if (activeMenuOrderId() === order.docId) {
+                              <div class="order-menu-dropdown">
+                                <button type="button" (click)="onEditOrder(order)">Edit</button>
+                                <button type="button" class="danger" (click)="onDeleteOrder(order.docId)">Delete</button>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<p-popover #monthOrderPopover [dismissable]="true" appendTo="body" styleClass="month-order-popover" (onHide)="onMonthPopoverHide()">
+  @if (monthPopoverOrder(); as order) {
+    <div class="month-popover-content">
+      <div class="month-popover-name">{{ order.data.name }}</div>
+      <div class="month-popover-status" [ngClass]="statusClass(order.data.status)">
+        {{ statusLabel(order.data.status) }}
+      </div>
+      <div class="month-popover-actions">
+        <button type="button" (click)="onMonthPopoverEdit()">Edit</button>
+        <button type="button" class="danger" (click)="onMonthPopoverDelete()">Delete</button>
+      </div>
+    </div>
+  }
+</p-popover>
+
+<app-work-order-panel
+  [isOpen]="panelOpen()"
+  [mode]="panelMode()"
+  [workCenterName]="selectedWorkCenterName()"
+  [defaultStartDate]="panelDefaultStartDate()"
+  [defaultEndDate]="panelDefaultEndDate()"
+  [editingOrder]="editingOrder()"
+  [overlapError]="panelOverlapError()"
+  (closed)="onPanelClose()"
+  (submitted)="onPanelSubmit($event)"
+/>
