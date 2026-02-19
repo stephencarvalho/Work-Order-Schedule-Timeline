@@ -1,0 +1,94 @@
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function addDays(date: Date, amount: number): Date {
+  const clone = startOfDay(date);
+  clone.setDate(clone.getDate() + amount);
+  return clone;
+}
+
+export function addMonths(date: Date, amount: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+export function startOfWeek(date: Date): Date {
+  const dayStart = startOfDay(date);
+  const day = dayStart.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(dayStart, diff);
+}
+
+export function endOfWeek(date: Date): Date {
+  return addDays(startOfWeek(date), 6);
+}
+
+export function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+export function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+export function daysInMonth(date: Date): number {
+  return endOfMonth(date).getDate();
+}
+
+export function diffInDays(later: Date, earlier: Date): number {
+  const a = startOfDay(later).getTime();
+  const b = startOfDay(earlier).getTime();
+  return Math.round((a - b) / MILLIS_PER_DAY);
+}
+
+export function diffInMonths(later: Date, earlier: Date): number {
+  return (later.getFullYear() - earlier.getFullYear()) * 12 + (later.getMonth() - earlier.getMonth());
+}
+
+export function isDateInRange(date: Date, start: Date, end: Date): boolean {
+  const value = startOfDay(date).getTime();
+  return value >= startOfDay(start).getTime() && value <= startOfDay(end).getTime();
+}
+
+export function clampDate(date: Date, start: Date, end: Date): Date {
+  if (date < start) {
+    return startOfDay(start);
+  }
+  if (date > end) {
+    return startOfDay(end);
+  }
+  return startOfDay(date);
+}
+
+export function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function fromIsoDate(value: string): Date {
+  const [yearRaw, monthRaw, dayRaw] = value.split('-').map(Number);
+  if (!yearRaw || !monthRaw || !dayRaw) {
+    return startOfDay(new Date());
+  }
+  return new Date(yearRaw, monthRaw - 1, dayRaw);
+}
+
+export function formatDayLabel(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
+export function formatWeekLabel(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
+export function formatMonthLabel(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
+}
+
+export function formatDateLong(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}

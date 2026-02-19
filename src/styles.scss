@@ -1,0 +1,32 @@
+@import url('https://naologic-com-assets.naologic.com/fonts/circular-std/circular-std.css');
+
+:root {
+  --bg: #ffffff;
+  --text: #1a2246;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Circular-Std', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
