@@ -4,7 +4,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
   NgZone,
   OnDestroy,
   ViewChild,
@@ -15,7 +14,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgSelectModule } from '@ng-select/ng-select';
-import { Popover, PopoverModule } from 'primeng/popover';
+import { NgbPopover } from '@ng-bootstrap/ng-bootstrap/popover';
 
 import { WorkOrderPanelComponent, WorkOrderPanelSubmitEvent } from '../work-order-panel/work-order-panel.component';
 import { Timescale, TimelineColumn, WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
@@ -30,6 +29,7 @@ import {
   endOfMonth,
   endOfWeek,
   formatDayLabel,
+  formatDateLong,
   formatMonthLabel,
   formatWeekLabel,
   fromIsoDate,
@@ -45,6 +45,26 @@ interface TimelineProjection {
   columns: TimelineColumn[];
   width: number;
   columnWidth: number;
+}
+
+interface OrderPlacement {
+  left: number;
+  width: number;
+}
+
+interface HoverSlot {
+  centerId: string;
+  left: number;
+  width: number;
+  startDate: Date;
+  endDate: Date;
+}
+
+interface PendingPopoverOpenRequest {
+  order: WorkOrderDocument;
+  popover: NgbPopover;
+  clickX: number;
+  clickY: number;
 }
 
 const SCALE_OPTIONS: Array<{ value: Timescale; label: string }> = [
@@ -81,10 +101,20 @@ const STATUS_CLASS: Record<WorkOrderStatus, string> = {
   blocked: 'status-blocked'
 };
 
+const STATUS_PILL_MIN_WIDTH: Record<WorkOrderStatus, number> = {
+  open: 51,
+  'in-progress': 87,
+  complete: 63,
+  blocked: 67
+};
+const CARD_HORIZONTAL_PADDING = 20;
+const CARD_CONTENT_GAP = 12;
+const MIN_NAME_WIDTH_WITH_STATUS = 56;
+
 @Component({
   selector: 'app-work-order-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgSelectModule, PopoverModule, WorkOrderPanelComponent],
+  imports: [CommonModule, FormsModule, NgSelectModule, NgbPopover, WorkOrderPanelComponent],
   templateUrl: './work-order-timeline.component.html',
   styleUrl: './work-order-timeline.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -92,11 +122,14 @@ const STATUS_CLASS: Record<WorkOrderStatus, string> = {
 export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   @ViewChild('timelineHorizontalScroll', { static: true }) timelineScrollRef!: ElementRef<HTMLDivElement>;
   @ViewChild('headerTrackContent', { static: true }) headerTrackContentRef!: ElementRef<HTMLDivElement>;
-  @ViewChild('monthOrderPopover') monthOrderPopoverRef?: Popover;
   private readonly store = inject(WorkOrderStoreService);
   private readonly ngZone = inject(NgZone);
   private detachHorizontalScrollSync: (() => void) | null = null;
   private timelineResizeObserver: ResizeObserver | null = null;
+  private hoverClearTimeoutId: number | null = null;
+  private popoverClickAnchorEl: HTMLElement | null = null;
+  private activeOrderPopover: NgbPopover | null = null;
+  private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
   private readonly timelineViewportWidth = signal(0);
 
   readonly timescaleOptions = SCALE_OPTIONS;
@@ -107,8 +140,9 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly selectedMonth = signal(new Date().getMonth());
 
   readonly hoveredCenterId = signal<string | null>(null);
-  readonly activeMenuOrderId = signal<string | null>(null);
-  readonly monthPopoverOrder = signal<WorkOrderDocument | null>(null);
+  readonly hoveredSlot = signal<HoverSlot | null>(null);
+  readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
+  readonly orderPopoverPlacement = signal<'top' | 'bottom' | 'start' | 'end'>('top');
 
   readonly panelOpen = signal(false);
   readonly panelMode = signal<'create' | 'edit'>('create');
@@ -181,19 +215,24 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.bindTimelineResizeSync();
     this.centerTimelineOnToday();
     this.bindHorizontalScrollSync();
+    queueMicrotask(() => {
+      const container = this.timelineScrollRef?.nativeElement;
+      if (container) {
+        this.syncHeaderScroll(container.scrollLeft);
+      }
+    });
   }
 
   ngOnDestroy(): void {
     this.detachHorizontalScrollSync?.();
     this.timelineResizeObserver?.disconnect();
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.work-order-menu')) {
-      this.activeMenuOrderId.set(null);
+    if (this.hoverClearTimeoutId !== null) {
+      window.clearTimeout(this.hoverClearTimeoutId);
+      this.hoverClearTimeoutId = null;
     }
+    this.activeOrderPopover?.close();
+    this.activeOrderPopover = null;
+    this.destroyPopoverClickAnchor();
   }
 
   trackCenter(_index: number, center: WorkCenterDocument): string {
@@ -226,7 +265,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   onTrackClick(event: MouseEvent, centerId: string): void {
     const target = event.target as HTMLElement;
-    if (target.closest('.work-order-card') || target.closest('.work-order-menu') || target.closest('.order-menu-dropdown')) {
+    if (target.closest('.work-order-card')) {
       return;
     }
 
@@ -234,64 +273,128 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     const rect = container.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const clickedDate = this.pixelToDate(x);
+    const { start, end } = this.resolveRangeForDate(clickedDate);
 
     this.panelMode.set('create');
     this.panelWorkCenterId.set(centerId);
-    this.panelDefaultStartDate.set(toIsoDate(clickedDate));
-    this.panelDefaultEndDate.set(toIsoDate(addDays(clickedDate, 7)));
+    this.panelDefaultStartDate.set(toIsoDate(start));
+    this.panelDefaultEndDate.set(toIsoDate(end));
     this.editingOrder.set(null);
     this.panelOverlapError.set(null);
     this.panelOpen.set(true);
   }
 
   onHoverCenter(centerId: string | null): void {
-    this.hoveredCenterId.set(centerId);
-  }
-
-  onToggleOrderMenu(event: MouseEvent, orderId: string): void {
-    event.stopPropagation();
-    this.activeMenuOrderId.update((current) => (current === orderId ? null : orderId));
-  }
-
-  onOrderCardClick(event: MouseEvent, order: WorkOrderDocument): void {
-    event.stopPropagation();
-
-    if (this.timescale() !== 'month') {
+    if (centerId) {
+      if (this.hoverClearTimeoutId !== null) {
+        window.clearTimeout(this.hoverClearTimeoutId);
+        this.hoverClearTimeoutId = null;
+      }
+      this.hoveredCenterId.set(centerId);
       return;
     }
 
-    this.activeMenuOrderId.set(null);
-    this.monthPopoverOrder.set(order);
-    const anchor = event.currentTarget as HTMLElement | null;
-    this.monthOrderPopoverRef?.toggle(event, anchor ?? undefined);
+    if (this.hoverClearTimeoutId !== null) {
+      window.clearTimeout(this.hoverClearTimeoutId);
+    }
+
+    this.hoverClearTimeoutId = window.setTimeout(() => {
+      this.hoveredCenterId.set(null);
+      this.hoverClearTimeoutId = null;
+    }, 40);
   }
 
-  onMonthPopoverHide(): void {
-    this.monthPopoverOrder.set(null);
+  onTrackHover(event: MouseEvent, centerId: string): void {
+    this.onHoverCenter(centerId);
+
+    const container = event.currentTarget as HTMLDivElement;
+    const rect = container.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    this.hoveredSlot.set(this.computeHoverSlot(centerId, x));
   }
 
-  onMonthPopoverEdit(): void {
-    const order = this.monthPopoverOrder();
+  onTrackEnter(event: MouseEvent, centerId: string): void {
+    // Resolve the hover slot on initial entry so the "Click to add dates" hint
+    // appears immediately without requiring an extra mousemove.
+    this.onTrackHover(event, centerId);
+  }
+
+  onTrackLeave(): void {
+    this.onHoverCenter(null);
+    this.hoveredSlot.set(null);
+  }
+
+  onOrderCardClick(event: MouseEvent, order: WorkOrderDocument, popover: NgbPopover): void {
+    event.stopPropagation();
+
+    if (this.activeOrderPopover && this.activeOrderPopover !== popover) {
+      // Queue the next popover request so switching work orders happens in one click.
+      this.pendingPopoverOpenRequest = {
+        order,
+        popover,
+        clickX: event.clientX,
+        clickY: event.clientY
+      };
+      this.activeOrderPopover.close();
+      return;
+    }
+
+    const samePopoverOpen = this.activeOrderPopover === popover && popover.isOpen();
+    if (samePopoverOpen) {
+      popover.close();
+      this.activeOrderPopover = null;
+      this.activePopoverOrder.set(null);
+      return;
+    }
+
+    this.openOrderPopover(order, popover, event.clientX, event.clientY);
+  }
+
+  onOrderPopoverShown(popover: NgbPopover): void {
+    this.activeOrderPopover = popover;
+  }
+
+  onOrderPopoverHidden(popover: NgbPopover): void {
+    // Always detach hidden popover from its anchor before a later reuse.
+    popover.positionTarget = undefined;
+
+    if (this.activeOrderPopover === popover) {
+      this.activeOrderPopover = null;
+    }
+
+    // If a WO was clicked while this popover was closing, open it immediately now.
+    if (this.pendingPopoverOpenRequest) {
+      const request = this.pendingPopoverOpenRequest;
+      this.pendingPopoverOpenRequest = null;
+      this.openOrderPopover(request.order, request.popover, request.clickX, request.clickY);
+      return;
+    }
+
+    this.activePopoverOrder.set(null);
+    this.destroyPopoverClickAnchor();
+  }
+
+  onOrderPopoverEdit(): void {
+    const order = this.activePopoverOrder();
     if (!order) {
       return;
     }
 
-    this.monthOrderPopoverRef?.hide();
+    this.activeOrderPopover?.close();
     this.onEditOrder(order);
   }
 
-  onMonthPopoverDelete(): void {
-    const order = this.monthPopoverOrder();
+  onOrderPopoverDelete(): void {
+    const order = this.activePopoverOrder();
     if (!order) {
       return;
     }
 
-    this.monthOrderPopoverRef?.hide();
+    this.activeOrderPopover?.close();
     this.onDeleteOrder(order.docId);
   }
 
   onEditOrder(order: WorkOrderDocument): void {
-    this.activeMenuOrderId.set(null);
     this.panelMode.set('edit');
     this.panelWorkCenterId.set(order.data.workCenterId);
     this.panelDefaultStartDate.set(order.data.startDate);
@@ -303,7 +406,6 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   onDeleteOrder(orderId: string): void {
     this.store.deleteWorkOrder(orderId);
-    this.activeMenuOrderId.set(null);
   }
 
   onPanelClose(): void {
@@ -350,26 +452,11 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   orderStyle(order: WorkOrderDocument): Record<string, string> {
-    const { start: rangeStart, end: rangeEnd } = this.getVisibleRange();
-    const orderStart = fromIsoDate(order.data.startDate);
-    const orderEnd = fromIsoDate(order.data.endDate);
-
-    const clippedStart = orderStart < rangeStart ? rangeStart : orderStart;
-    const clippedEnd = orderEnd > rangeEnd ? rangeEnd : orderEnd;
-
-    const start = clippedStart;
-    const end = addDays(clippedEnd, 1);
-
-    let left = this.clampPixel(this.dateToPixel(start));
-    const right = this.clampPixel(this.dateToPixel(end));
-    const minWidth = this.timescale() === 'month' ? 36 : 1;
-    const width = Math.max(minWidth, right - left);
-    const maxLeft = Math.max(0, this.timelineWidth() - width);
-    left = Math.min(left, maxLeft);
+    const placement = this.getOrderPlacement(order);
 
     return {
-      left: `${left}px`,
-      width: `${width}px`
+      left: `${placement.left}px`,
+      width: `${placement.width}px`
     };
   }
 
@@ -379,6 +466,24 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   statusClass(status: WorkOrderStatus): string {
     return STATUS_CLASS[status];
+  }
+
+  shouldShowInlineStatus(order: WorkOrderDocument): boolean {
+    const width = this.getOrderPlacement(order).width;
+    const requiredWidth = STATUS_PILL_MIN_WIDTH[order.data.status] + CARD_HORIZONTAL_PADDING + CARD_CONTENT_GAP + MIN_NAME_WIDTH_WITH_STATUS;
+    return width >= requiredWidth;
+  }
+
+  orderDateLabel(value: string): string {
+    return formatDateLong(fromIsoDate(value));
+  }
+
+  hoveredSlotForCenter(centerId: string): HoverSlot | null {
+    const slot = this.hoveredSlot();
+    if (!slot || slot.centerId !== centerId) {
+      return null;
+    }
+    return slot;
   }
 
   private buildProjection(scale: Timescale): TimelineProjection {
@@ -552,6 +657,150 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     return { start, end };
   }
 
+  private getOrderPlacement(order: WorkOrderDocument): OrderPlacement {
+    const { start: rangeStart, end: rangeEnd } = this.getVisibleRange();
+    const orderStart = fromIsoDate(order.data.startDate);
+    const orderEnd = fromIsoDate(order.data.endDate);
+
+    const clippedStart = orderStart < rangeStart ? rangeStart : orderStart;
+    const clippedEnd = orderEnd > rangeEnd ? rangeEnd : orderEnd;
+
+    const start = clippedStart;
+    const end = addDays(clippedEnd, 1);
+
+    let left = this.clampPixel(this.dateToPixel(start));
+    const right = this.clampPixel(this.dateToPixel(end));
+    const minWidth = this.timescale() === 'month' ? 36 : 1;
+    let width = Math.max(minWidth, right - left);
+    const maxLeft = Math.max(0, this.timelineWidth() - width);
+    left = Math.min(left, maxLeft);
+
+    // Keep each card slightly inside its computed bounds so adjacent work orders
+    // don't visually touch/overlap on shared grid boundaries.
+    const horizontalInset = 2;
+    if (width > horizontalInset * 2) {
+      left += horizontalInset;
+      width -= horizontalInset * 2;
+    }
+
+    return { left, width };
+  }
+
+  private computeHoverSlot(centerId: string, x: number): HoverSlot | null {
+    const columns = this.columns();
+    if (!columns.length) {
+      return null;
+    }
+
+    const column = columns.find((item) => x >= item.left && x < item.left + item.width) ?? columns[columns.length - 1];
+    const { start, end } = this.resolveRangeForDate(column.startDate);
+
+    if (this.hasOrderInRange(centerId, start, end)) {
+      return null;
+    }
+
+    const inset = 5;
+    const slotWidth = Math.max(1, column.width - inset * 2);
+    const rawLeft = column.left + inset;
+    const left = Math.min(Math.max(0, rawLeft), Math.max(0, this.timelineWidth() - slotWidth));
+
+    return {
+      centerId,
+      left,
+      width: slotWidth,
+      startDate: start,
+      endDate: end
+    };
+  }
+
+  private hasOrderInRange(centerId: string, start: Date, end: Date): boolean {
+    const orders = this.getOrdersForCenter(centerId);
+    return orders.some((order) => {
+      const orderStart = fromIsoDate(order.data.startDate);
+      const orderEnd = fromIsoDate(order.data.endDate);
+      return orderEnd >= start && orderStart <= end;
+    });
+  }
+
+  private resolveRangeForDate(date: Date): { start: Date; end: Date } {
+    if (this.timescale() === 'day') {
+      const day = startOfDay(date);
+      return { start: day, end: day };
+    }
+
+    if (this.timescale() === 'week') {
+      return { start: startOfWeek(date), end: endOfWeek(date) };
+    }
+
+    return { start: startOfMonth(date), end: endOfMonth(date) };
+  }
+
+  private openOrderPopover(order: WorkOrderDocument, popover: NgbPopover, clickX: number, clickY: number): void {
+    this.activePopoverOrder.set(order);
+    this.orderPopoverPlacement.set(this.resolvePopoverPlacement(clickX, clickY));
+    popover.positionTarget = this.createPopoverClickAnchor(clickX, clickY);
+
+    // Open in next macrotask so this click is not interpreted as immediate outside-click autoclose.
+    window.setTimeout(() => {
+      popover.open();
+      this.activeOrderPopover = popover;
+    }, 0);
+  }
+
+  private resolvePopoverPlacement(clickX: number, clickY: number): 'top' | 'bottom' | 'start' | 'end' {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const estimatedPopoverWidth = 320;
+    const estimatedPopoverHeight = 280;
+
+    const roomRight = viewportWidth - clickX;
+    const roomLeft = clickX;
+    const roomBottom = viewportHeight - clickY;
+    const roomTop = clickY;
+
+    if (roomRight < estimatedPopoverWidth && roomLeft >= estimatedPopoverWidth) {
+      return 'start';
+    }
+
+    if (roomLeft < estimatedPopoverWidth && roomRight >= estimatedPopoverWidth) {
+      return 'end';
+    }
+
+    if (roomBottom < estimatedPopoverHeight && roomTop >= estimatedPopoverHeight) {
+      return 'top';
+    }
+
+    if (roomTop < estimatedPopoverHeight && roomBottom >= estimatedPopoverHeight) {
+      return 'bottom';
+    }
+
+    return roomRight >= roomLeft ? 'end' : 'start';
+  }
+
+  private createPopoverClickAnchor(clickX: number, clickY: number): HTMLElement {
+    this.destroyPopoverClickAnchor();
+
+    const anchor = document.createElement('span');
+    anchor.className = 'work-order-popover-click-anchor';
+    anchor.style.position = 'fixed';
+    anchor.style.left = `${clickX}px`;
+    anchor.style.top = `${clickY}px`;
+    anchor.style.width = '1px';
+    anchor.style.height = '1px';
+    anchor.style.pointerEvents = 'none';
+    anchor.style.opacity = '0';
+    anchor.style.zIndex = '-1';
+    document.body.appendChild(anchor);
+
+    this.popoverClickAnchorEl = anchor;
+    return anchor;
+  }
+
+  private destroyPopoverClickAnchor(): void {
+    this.popoverClickAnchorEl?.remove();
+    this.popoverClickAnchorEl = null;
+  }
+
   private centerTimelineOnToday(): void {
     const container = this.timelineScrollRef?.nativeElement;
     if (!container) {
@@ -604,24 +853,13 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     }
 
     this.ngZone.runOutsideAngular(() => {
-      let rafId = 0;
       const onScroll = () => {
-        if (rafId) {
-          return;
-        }
-
-        rafId = requestAnimationFrame(() => {
-          rafId = 0;
-          this.syncHeaderScroll(container.scrollLeft);
-        });
+        this.syncHeaderScroll(container.scrollLeft);
       };
 
       container.addEventListener('scroll', onScroll, { passive: true });
       this.detachHorizontalScrollSync = () => {
         container.removeEventListener('scroll', onScroll);
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-        }
       };
     });
   }

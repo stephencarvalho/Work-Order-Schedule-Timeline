@@ -56,8 +56,11 @@
         </div>
 
         @for (center of workCenters(); track trackCenter($index, center)) {
-          <div class="timeline-row">
-            <div class="work-center-cell">
+          <div
+            class="timeline-row"
+            [class.row-hovered]="hoveredCenterId() === center.docId"
+          >
+            <div class="work-center-cell" (mouseenter)="onHoverCenter(center.docId)" (mouseleave)="onHoverCenter(null)">
               {{ center.data.name }}
             </div>
           </div>
@@ -98,54 +101,49 @@
             }
 
             @for (center of workCenters(); track trackCenter($index, center)) {
-              <div
-                class="timeline-row"
-                (mouseenter)="onHoverCenter(center.docId)"
-                (mouseleave)="onHoverCenter(null)"
-              >
-                <div class="track-cell" [style.width.px]="timelineWidth()" (click)="onTrackClick($event, center.docId)">
+            <div
+              class="timeline-row"
+              [class.timeline-row--first]="$first"
+              [class.row-hovered]="hoveredCenterId() === center.docId"
+            >
+                <div
+                  class="track-cell"
+                  [style.width.px]="timelineWidth()"
+                  (mouseenter)="onTrackEnter($event, center.docId)"
+                  (mousemove)="onTrackHover($event, center.docId)"
+                  (mouseleave)="onTrackLeave()"
+                  (click)="onTrackClick($event, center.docId)"
+                >
                   @for (column of columns(); track column.index) {
                     <div class="track-column" [style.left.px]="column.left" [style.width.px]="column.width"></div>
                   }
 
-                  @if (hoveredCenterId() === center.docId) {
-                    <div class="hover-hint">Click to add dates</div>
+                  @if (hoveredSlotForCenter(center.docId); as slot) {
+                    <div class="add-dates-hint" [style.left.px]="slot.left + slot.width / 2">Click to add dates</div>
+                    <div class="add-dates-slot" [style.left.px]="slot.left" [style.width.px]="slot.width"></div>
                   }
 
                   @for (order of getOrdersForCenter(center.docId); track trackOrder($index, order)) {
                     @if (isOrderVisible(order)) {
                       <div
                         class="work-order-card"
-                        [class.work-order-card--month]="timescale() === 'month'"
+                        #orderPopover="ngbPopover"
                         [ngClass]="statusClass(order.data.status)"
                         [ngStyle]="orderStyle(order)"
+                        [ngbPopover]="orderPopoverTemplate"
+                        [placement]="orderPopoverPlacement()"
+                        [popoverClass]="'work-order-popover'"
+                        [autoClose]="'outside'"
+                        [container]="'body'"
+                        triggers="manual"
+                        (shown)="onOrderPopoverShown(orderPopover)"
+                        (hidden)="onOrderPopoverHidden(orderPopover)"
                         [title]="order.data.name"
-                        (click)="onOrderCardClick($event, order)"
+                        (click)="onOrderCardClick($event, order, orderPopover)"
                       >
-                        @if (timescale() !== 'month') {
-                          <span class="order-name">{{ order.data.name }}</span>
+                        <span class="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
+                        @if (shouldShowInlineStatus(order)) {
                           <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
-
-                          <div class="work-order-menu" (click)="$event.stopPropagation()">
-                            <button
-                              type="button"
-                              class="menu-trigger"
-                              [class.active]="activeMenuOrderId() === order.docId"
-                              (click)="onToggleOrderMenu($event, order.docId)"
-                              aria-label="Open order actions"
-                            >
-                              <span></span>
-                              <span></span>
-                              <span></span>
-                            </button>
-
-                            @if (activeMenuOrderId() === order.docId) {
-                              <div class="order-menu-dropdown">
-                                <button type="button" (click)="onEditOrder(order)">Edit</button>
-                                <button type="button" class="danger" (click)="onDeleteOrder(order.docId)">Delete</button>
-                              </div>
-                            }
-                          </div>
                         }
                       </div>
                     }
@@ -160,20 +158,24 @@
   </div>
 </section>
 
-<p-popover #monthOrderPopover [dismissable]="true" appendTo="body" styleClass="month-order-popover" (onHide)="onMonthPopoverHide()">
-  @if (monthPopoverOrder(); as order) {
-    <div class="month-popover-content">
-      <div class="month-popover-name">{{ order.data.name }}</div>
-      <div class="month-popover-status" [ngClass]="statusClass(order.data.status)">
+<ng-template #orderPopoverTemplate>
+  @if (activePopoverOrder(); as order) {
+    <div class="order-popover-content">
+      <div class="order-popover-name">{{ order.data.name }}</div>
+      <div class="order-popover-status" [ngClass]="statusClass(order.data.status)">
         {{ statusLabel(order.data.status) }}
       </div>
-      <div class="month-popover-actions">
-        <button type="button" (click)="onMonthPopoverEdit()">Edit</button>
-        <button type="button" class="danger" (click)="onMonthPopoverDelete()">Delete</button>
+      <div class="order-popover-dates">
+        <div><strong>Start:</strong> {{ orderDateLabel(order.data.startDate) }}</div>
+        <div><strong>End:</strong> {{ orderDateLabel(order.data.endDate) }}</div>
+      </div>
+      <div class="order-popover-actions">
+        <button type="button" (click)="onOrderPopoverEdit()">Edit</button>
+        <button type="button" class="danger" (click)="onOrderPopoverDelete()">Delete</button>
       </div>
     </div>
   }
-</p-popover>
+</ng-template>
 
 <app-work-order-panel
   [isOpen]="panelOpen()"
