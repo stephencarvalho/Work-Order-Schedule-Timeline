@@ -14,7 +14,9 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgSelectModule } from '@ng-select/ng-select';
+import { NgbAlert } from '@ng-bootstrap/ng-bootstrap/alert';
 import { NgbPopover } from '@ng-bootstrap/ng-bootstrap/popover';
+import confetti from 'canvas-confetti';
 
 import { WorkOrderPanelComponent, WorkOrderPanelSubmitEvent } from '../work-order-panel/work-order-panel.component';
 import { Timescale, TimelineColumn, WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
@@ -71,6 +73,13 @@ interface PendingPopoverOpenRequest {
   clickY: number;
 }
 
+interface PushNotification {
+  id: number;
+  title: string;
+  message: string;
+  tone: 'default' | 'complete' | 'warning';
+}
+
 type WorkCenterSortOrder = 'default' | 'asc' | 'desc';
 
 const SCALE_OPTIONS: Array<{ value: Timescale; label: string }> = [
@@ -99,7 +108,7 @@ const MIN_NAME_WIDTH_WITH_STATUS = 56;
 @Component({
   selector: 'app-work-order-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgSelectModule, NgbPopover, WorkOrderPanelComponent],
+  imports: [CommonModule, FormsModule, NgSelectModule, NgbPopover, NgbAlert, WorkOrderPanelComponent],
   templateUrl: './work-order-timeline.component.html',
   styleUrl: './work-order-timeline.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -115,6 +124,9 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private popoverClickAnchorEl: HTMLElement | null = null;
   private activeOrderPopover: NgbPopover | null = null;
   private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
+  private readonly notificationTimeoutIds = new Map<number, number>();
+  private fireworksIntervalId: number | null = null;
+  private readonly notificationDurationMs = 5000;
   private readonly timelineViewportWidth = signal(0);
   private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
 
@@ -129,6 +141,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly hoveredSlot = signal<HoverSlot | null>(null);
   readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
   readonly orderPopoverPlacement = signal<'top' | 'bottom' | 'start' | 'end'>('top');
+  readonly notifications = signal<PushNotification[]>([]);
 
   readonly panelOpen = signal(false);
   readonly panelMode = signal<'create' | 'edit'>('create');
@@ -245,6 +258,14 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.activeOrderPopover?.close();
     this.activeOrderPopover = null;
     this.destroyPopoverClickAnchor();
+    for (const timeoutId of this.notificationTimeoutIds.values()) {
+      window.clearTimeout(timeoutId);
+    }
+    this.notificationTimeoutIds.clear();
+    if (this.fireworksIntervalId !== null) {
+      window.clearInterval(this.fireworksIntervalId);
+      this.fireworksIntervalId = null;
+    }
   }
 
   trackCenter(_index: number, center: WorkCenterDocument): string {
@@ -293,13 +314,20 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     const container = event.currentTarget as HTMLElement;
     const rect = container.getBoundingClientRect();
     const x = event.clientX - rect.left;
-    const clickedDate = this.pixelToDate(x);
-    const { start, end } = this.resolveRangeForDate(clickedDate);
+    const slot = this.computeHoverSlot(centerId, x);
+    if (!slot) {
+      this.pushNotification(
+        'Busy Slot',
+        `That time range in ${this.resolveWorkCenterName(centerId)} is already occupied. Pick an empty slot.`,
+        'warning'
+      );
+      return;
+    }
 
     this.panelMode.set('create');
     this.panelWorkCenterId.set(centerId);
-    this.panelDefaultStartDate.set(toIsoDate(start));
-    this.panelDefaultEndDate.set(toIsoDate(end));
+    this.panelDefaultStartDate.set(toIsoDate(slot.startDate));
+    this.panelDefaultEndDate.set(toIsoDate(slot.endDate));
     this.editingOrder.set(null);
     this.panelOverlapError.set(null);
     this.panelOpen.set(true);
@@ -423,7 +451,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     }
 
     this.activeOrderPopover?.close();
-    this.onDeleteOrder(order.docId);
+    this.onDeleteOrder(order);
   }
 
   onEditOrder(order: WorkOrderDocument): void {
@@ -436,8 +464,10 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.panelOpen.set(true);
   }
 
-  onDeleteOrder(orderId: string): void {
-    this.store.deleteWorkOrder(orderId);
+  onDeleteOrder(order: WorkOrderDocument): void {
+    this.store.deleteWorkOrder(order.docId);
+    const workCenterName = this.resolveWorkCenterName(order.data.workCenterId);
+    this.pushNotification('Deleted', `"${order.data.name}" in ${workCenterName} deleted successfully.`);
   }
 
   onPanelClose(): void {
@@ -458,10 +488,16 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       this.panelOverlapError.set(
         `This work order conflicts with "${conflictingOrder.data.name}" (${formatDateLong(fromIsoDate(conflictingOrder.data.startDate))} to ${formatDateLong(fromIsoDate(conflictingOrder.data.endDate))}) in the selected work center.`
       );
+      this.pushNotification(
+        'Schedule Conflict',
+        `Dates conflict with "${conflictingOrder.data.name}" in ${this.resolveWorkCenterName(candidate.workCenterId)}.`,
+        'warning'
+      );
       return;
     }
 
-    if (this.panelMode() === 'edit' && event.existingOrderId) {
+    const isUpdate = this.panelMode() === 'edit' && !!event.existingOrderId;
+    if (isUpdate && event.existingOrderId) {
       this.store.updateWorkOrder(event.existingOrderId, candidate);
     } else {
       this.store.createWorkOrder(candidate);
@@ -469,6 +505,25 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
     this.panelOpen.set(false);
     this.panelOverlapError.set(null);
+
+    const workCenterName = this.resolveWorkCenterName(candidate.workCenterId);
+    if (candidate.status === 'complete') {
+      const verb = isUpdate ? 'updated' : 'created';
+      this.pushNotification(
+        'All Done',
+        `"${candidate.name}" in ${workCenterName} was ${verb} as complete. Good work, you crushed it.`,
+        'complete'
+      );
+      this.triggerFireworks();
+      return;
+    }
+
+    if (isUpdate) {
+      this.pushNotification('Updated', `"${candidate.name}" in ${workCenterName} updated successfully.`);
+      return;
+    }
+
+    this.pushNotification('Created', `"${candidate.name}" created in ${workCenterName} successfully.`);
   }
 
   getOrdersForCenter(centerId: string): WorkOrderDocument[] {
@@ -903,5 +958,65 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     }
 
     headerContent.style.transform = `translate3d(${-scrollLeft}px, 0, 0)`;
+  }
+
+  private resolveWorkCenterName(centerId: string): string {
+    return this.workCenters().find((center) => center.docId === centerId)?.data.name ?? 'selected work center';
+  }
+
+  private pushNotification(title: string, message: string, tone: PushNotification['tone'] = 'default'): void {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    this.notifications.update((current) => [...current, { id, title, message, tone }]);
+
+    const timeoutId = window.setTimeout(() => this.removeNotification(id), this.notificationDurationMs);
+    this.notificationTimeoutIds.set(id, timeoutId);
+  }
+
+  onNotificationClosed(id: number): void {
+    this.removeNotification(id);
+  }
+
+  private removeNotification(id: number): void {
+    const timeoutId = this.notificationTimeoutIds.get(id);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      this.notificationTimeoutIds.delete(id);
+    }
+    this.notifications.update((current) => current.filter((item) => item.id !== id));
+  }
+
+  private triggerFireworks(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (this.fireworksIntervalId !== null) {
+      window.clearInterval(this.fireworksIntervalId);
+      this.fireworksIntervalId = null;
+    }
+
+    const duration = 5 * 1000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+    this.fireworksIntervalId = window.setInterval(() => {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        if (this.fireworksIntervalId !== null) {
+          window.clearInterval(this.fireworksIntervalId);
+          this.fireworksIntervalId = null;
+        }
+        return;
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+      confetti({ ...defaults, particleCount, origin: { x: this.randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+      confetti({ ...defaults, particleCount, origin: { x: this.randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+    }, 250);
+  }
+
+  private randomInRange(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
   }
 }

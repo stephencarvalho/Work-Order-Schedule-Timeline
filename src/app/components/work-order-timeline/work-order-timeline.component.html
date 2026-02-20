@@ -1,4 +1,23 @@
 <section class="timeline-content">
+  <div class="notification-stack" aria-live="polite" aria-atomic="true">
+    @for (notification of notifications(); track notification.id) {
+      <ngb-alert
+        [dismissible]="true"
+        type="light"
+        (closed)="onNotificationClosed(notification.id)"
+        [ngClass]="
+          notification.tone === 'complete'
+            ? 'app-alert app-alert--complete'
+            : notification.tone === 'warning'
+              ? 'app-alert app-alert--warning'
+              : 'app-alert app-alert--default'
+        "
+      >
+        <strong>{{ notification.title }}!</strong> {{ notification.message }}
+      </ngb-alert>
+    }
+  </div>
+
   <div class="work-order-title">
     <h1>Work Orders</h1>
   </div>

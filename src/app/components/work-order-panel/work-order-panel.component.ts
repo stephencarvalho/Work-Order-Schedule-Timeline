@@ -53,7 +53,7 @@ export class WorkOrderPanelComponent implements OnChanges {
   readonly statuses = WORK_ORDER_STATUS_OPTIONS;
   readonly pickerMonthOptions = DATEPICKER_MONTH_OPTIONS;
   readonly pickerYearOptions = Array.from({ length: 61 }, (_, index) => 2000 + index);
-  readonly closeAnimationMs = 240;
+  readonly closeAnimationMs = 180;
   isPanelVisible = false;
   isPanelClosing = false;
 

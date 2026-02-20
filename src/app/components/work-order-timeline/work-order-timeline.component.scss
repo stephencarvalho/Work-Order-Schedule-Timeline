@@ -1,5 +1,54 @@
 .timeline-content {
   margin: 0;
+  position: relative;
+}
+
+.notification-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: min(440px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.app-alert {
+  margin: 0;
+  pointer-events: auto;
+  border: 1px solid rgba(204, 211, 236, 0.9);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9faff 100%);
+  color: #1f2a52;
+  font-family: 'Circular-Std', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow:
+    0 8px 18px rgba(27, 39, 84, 0.14),
+    0 0 0 1px rgba(79, 93, 171, 0.04);
+  animation: notification-in 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-alert strong {
+  color: #111f4a;
+  font-weight: 600;
+}
+
+.app-alert--default {
+  border-left: 4px solid #4b57f5;
+}
+
+.app-alert--complete {
+  border-left: 4px solid #08a268;
+  background: linear-gradient(180deg, #f5fff9 0%, #eefcf4 100%);
+}
+
+.app-alert--warning {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(180deg, #fffaf0 0%, #fff4dc 100%);
+}
 
 .work-order-title {
   h1 {
@@ -12,7 +61,6 @@
     font-weight: 500;
     font-style: normal;
   }
-}
 }
 
 .toolbar {
@@ -630,5 +678,17 @@
     width: 17.5rem;
     min-width: 17.5rem;
     padding: 0 16px;
+  }
+}
+
+@keyframes notification-in {
+  from {
+    transform: translate3d(24px, -12px, 0) scale(0.98);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
   }
 }
