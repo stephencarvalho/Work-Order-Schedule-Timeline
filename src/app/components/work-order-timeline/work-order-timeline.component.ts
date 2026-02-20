@@ -201,6 +201,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
     return this.workCenters().find((center) => center.docId === id)?.data.name ?? '';
   });
+  readonly workCenterOptions = computed(() => this.workCenters());
 
   constructor() {
     effect(() => {
@@ -279,6 +280,17 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.panelWorkCenterId.set(centerId);
     this.panelDefaultStartDate.set(toIsoDate(start));
     this.panelDefaultEndDate.set(toIsoDate(end));
+    this.editingOrder.set(null);
+    this.panelOverlapError.set(null);
+    this.panelOpen.set(true);
+  }
+
+  onCreateButtonClick(): void {
+    // Open panel from global Create action without a preselected center.
+    this.panelMode.set('create');
+    this.panelWorkCenterId.set(null);
+    this.panelDefaultStartDate.set('');
+    this.panelDefaultEndDate.set('');
     this.editingOrder.set(null);
     this.panelOverlapError.set(null);
     this.panelOpen.set(true);
@@ -414,18 +426,18 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onPanelSubmit(event: WorkOrderPanelSubmitEvent): void {
-    const centerId = this.panelWorkCenterId();
-    if (!centerId) {
+    // Use selected center from panel form so top-level Create can target any center.
+    if (!event.payload.workCenterId) {
       return;
     }
 
-    const candidate: WorkOrderData = {
-      ...event.payload,
-      workCenterId: centerId
-    };
+    const candidate: WorkOrderData = event.payload;
 
-    if (this.store.hasOverlap(candidate, event.existingOrderId)) {
-      this.panelOverlapError.set('This work order overlaps an existing item on the same work center.');
+    const conflictingOrder = this.store.findOverlap(candidate, event.existingOrderId);
+    if (conflictingOrder) {
+      this.panelOverlapError.set(
+        `This work order conflicts with "${conflictingOrder.data.name}" (${formatDateLong(fromIsoDate(conflictingOrder.data.startDate))} to ${formatDateLong(fromIsoDate(conflictingOrder.data.endDate))}) in the selected work center.`
+      );
       return;
     }
 

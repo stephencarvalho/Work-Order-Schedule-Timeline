@@ -2,49 +2,52 @@
   <h1>Work Orders</h1>
 
   <div class="toolbar">
-    <div class="toolbar-controls">
-      <div class="timescale-selector">
-        <span class="timescale-label">Timescale</span>
-        <ng-select
-          class="timescale-select select--timescale"
-          [items]="timescaleOptions"
-          [bindLabel]="'label'"
-          [bindValue]="'value'"
-          [clearable]="false"
-          [searchable]="false"
-          [ngModel]="timescale()"
-          (ngModelChange)="onSelectTimescale($event)"
-        >
-        </ng-select>
-      </div>
+    <div class="toolbar-row">
+      <div class="toolbar-controls">
+        <div class="timescale-selector">
+          <span class="timescale-label">Timescale</span>
+          <ng-select
+            class="timescale-select select--timescale"
+            [items]="timescaleOptions"
+            [bindLabel]="'label'"
+            [bindValue]="'value'"
+            [clearable]="false"
+            [searchable]="false"
+            [ngModel]="timescale()"
+            (ngModelChange)="onSelectTimescale($event)"
+          >
+          </ng-select>
+        </div>
 
-      <div class="timescale-selector selector--year">
-        <span class="timescale-label">Year</span>
-        <ng-select
-          class="timescale-select select--year"
-          [items]="yearOptions"
-          [clearable]="false"
-          [searchable]="false"
-          [ngModel]="selectedYear()"
-          (ngModelChange)="onSelectYear($event)"
-        >
-        </ng-select>
-      </div>
+        <div class="timescale-selector selector--year">
+          <span class="timescale-label">Year</span>
+          <ng-select
+            class="timescale-select select--year"
+            [items]="yearOptions"
+            [clearable]="false"
+            [searchable]="false"
+            [ngModel]="selectedYear()"
+            (ngModelChange)="onSelectYear($event)"
+          >
+          </ng-select>
+        </div>
 
-      <div class="timescale-selector selector--month">
-        <span class="timescale-label">Month</span>
-        <ng-select
-          class="timescale-select select--month"
-          [items]="monthOptions"
-          [bindLabel]="'label'"
-          [bindValue]="'value'"
-          [clearable]="false"
-          [searchable]="false"
-          [ngModel]="selectedMonth()"
-          (ngModelChange)="onSelectMonth($event)"
-        >
-        </ng-select>
+        <div class="timescale-selector selector--month">
+          <span class="timescale-label">Month</span>
+          <ng-select
+            class="timescale-select select--month"
+            [items]="monthOptions"
+            [bindLabel]="'label'"
+            [bindValue]="'value'"
+            [clearable]="false"
+            [searchable]="false"
+            [ngModel]="selectedMonth()"
+            (ngModelChange)="onSelectMonth($event)"
+          >
+          </ng-select>
+        </div>
       </div>
+      <button type="button" class="timeline-create-btn" (click)="onCreateButtonClick()">Create</button>
     </div>
   </div>
 
@@ -181,6 +184,8 @@
   [isOpen]="panelOpen()"
   [mode]="panelMode()"
   [workCenterName]="selectedWorkCenterName()"
+  [workCenters]="workCenterOptions()"
+  [defaultWorkCenterId]="panelWorkCenterId()"
   [defaultStartDate]="panelDefaultStartDate()"
   [defaultEndDate]="panelDefaultEndDate()"
   [editingOrder]="editingOrder()"

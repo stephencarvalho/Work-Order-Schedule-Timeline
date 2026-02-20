@@ -17,11 +17,35 @@
   margin-bottom: 1.125rem;
 }
 
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: calc(100vw - 10rem);
+}
+
 .toolbar-controls {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.timeline-create-btn {
+  height: 34px;
+  min-width: 68px;
+  border-radius: 9px;
+  border: 1px solid #4b57f5;
+  background: #4b57f5;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.timeline-create-btn:hover {
+  background: #404de8;
 }
 
 .timescale-selector {

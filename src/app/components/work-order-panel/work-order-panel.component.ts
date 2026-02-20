@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
+import { NgbDateParserFormatter, NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
 import { NgSelectModule } from '@ng-select/ng-select';
 
-import { WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
+import { WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
 import { fromIsoDate, toIsoDate } from '../../utils/date-utils';
+import { DotDateParserFormatter } from './dot-date-parser-formatter';
 
 export interface WorkOrderPanelSubmitEvent {
   payload: WorkOrderData;
@@ -30,6 +31,7 @@ function isRangeValid(control: AbstractControl): ValidationErrors | null {
   selector: 'app-work-order-panel',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, NgSelectModule, NgbInputDatepicker, NgbDatepickerMonth],
+  providers: [{ provide: NgbDateParserFormatter, useClass: DotDateParserFormatter }],
   templateUrl: './work-order-panel.component.html',
   styleUrl: './work-order-panel.component.scss'
 })
@@ -37,6 +39,8 @@ export class WorkOrderPanelComponent implements OnChanges {
   @Input({ required: true }) isOpen = false;
   @Input({ required: true }) mode: 'create' | 'edit' = 'create';
   @Input() workCenterName = '';
+  @Input() workCenters: WorkCenterDocument[] = [];
+  @Input() defaultWorkCenterId: string | null = null;
   @Input() overlapError: string | null = null;
   @Input() defaultStartDate = '';
   @Input() defaultEndDate = '';
@@ -66,12 +70,14 @@ export class WorkOrderPanelComponent implements OnChanges {
     { label: 'Dec', value: 12 }
   ];
   readonly pickerYearOptions = Array.from({ length: 61 }, (_, index) => 2000 + index);
+  workCenterOptions: Array<{ value: string; label: string }> = [];
 
   private readonly formBuilder = inject(FormBuilder);
 
   readonly form = this.formBuilder.group(
     {
       name: this.formBuilder.nonNullable.control('', [Validators.required, Validators.maxLength(70)]),
+      workCenterId: this.formBuilder.control<string | null>(null, Validators.required),
       status: this.formBuilder.nonNullable.control<WorkOrderStatus>('open', Validators.required),
       startDate: this.formBuilder.control<NgbDateStruct | null>(null, Validators.required),
       endDate: this.formBuilder.control<NgbDateStruct | null>(null, Validators.required)
@@ -82,11 +88,21 @@ export class WorkOrderPanelComponent implements OnChanges {
   );
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['workCenters']) {
+      this.workCenterOptions = this.workCenters.map((center) => ({ value: center.docId, label: center.data.name }));
+    }
+
     if (!this.isOpen) {
       return;
     }
 
-    if (changes['isOpen'] || changes['editingOrder'] || changes['defaultStartDate'] || changes['defaultEndDate']) {
+    if (
+      changes['isOpen'] ||
+      changes['editingOrder'] ||
+      changes['defaultStartDate'] ||
+      changes['defaultEndDate'] ||
+      changes['defaultWorkCenterId']
+    ) {
       this.resetFormValues();
     }
   }
@@ -110,17 +126,18 @@ export class WorkOrderPanelComponent implements OnChanges {
 
     const start = this.form.controls.startDate.value;
     const end = this.form.controls.endDate.value;
+    const workCenterId = this.form.controls.workCenterId.value;
 
-    if (!start || !end) {
+    if (!start || !end || !workCenterId) {
       return;
     }
 
     const payload: WorkOrderData = {
       name: trimmedName,
+      workCenterId,
       status: this.form.controls.status.value,
       startDate: toIsoDate(new Date(start.year, start.month - 1, start.day)),
       endDate: toIsoDate(new Date(end.year, end.month - 1, end.day)),
-      workCenterId: this.editingOrder?.data.workCenterId ?? ''
     };
 
     this.submitted.emit({
@@ -129,7 +146,7 @@ export class WorkOrderPanelComponent implements OnChanges {
     });
   }
 
-  hasFieldError(fieldName: 'name' | 'status' | 'startDate' | 'endDate'): boolean {
+  hasFieldError(fieldName: 'name' | 'workCenterId' | 'status' | 'startDate' | 'endDate'): boolean {
     const field = this.form.get(fieldName);
     return !!field && field.invalid && (field.touched || field.dirty);
   }
@@ -140,6 +157,12 @@ export class WorkOrderPanelComponent implements OnChanges {
 
   statusChipClass(status: WorkOrderStatus): string {
     return `chip-${status}`;
+  }
+
+  onWorkCenterChange(workCenterId: string | null): void {
+    this.form.controls.workCenterId.setValue(workCenterId);
+    this.form.controls.workCenterId.markAsDirty();
+    this.form.controls.workCenterId.markAsTouched();
   }
 
   pickerMonth(datepicker: NgbDatepicker): number {
@@ -179,6 +202,7 @@ export class WorkOrderPanelComponent implements OnChanges {
     if (this.mode === 'edit' && this.editingOrder) {
       this.form.reset({
         name: this.editingOrder.data.name,
+        workCenterId: this.editingOrder.data.workCenterId,
         status: this.editingOrder.data.status,
         startDate: resolvedStartDate,
         endDate: resolvedEndDate
@@ -189,6 +213,7 @@ export class WorkOrderPanelComponent implements OnChanges {
 
     this.form.reset({
       name: '',
+      workCenterId: this.defaultWorkCenterId ?? null,
       status: 'open',
       startDate: resolvedStartDate,
       endDate: resolvedEndDate

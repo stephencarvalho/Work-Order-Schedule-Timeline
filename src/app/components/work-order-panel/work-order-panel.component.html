@@ -13,6 +13,39 @@
       </header>
 
       <form class="panel-form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+        @if (mode === 'create' && !defaultWorkCenterId) {
+          <div class="field-group">
+            <label for="work-center-name">Work center name</label>
+            <ng-select
+              id="work-center-name"
+              class="work-center-select"
+              [items]="workCenterOptions"
+              bindLabel="label"
+              bindValue="value"
+              [searchable]="false"
+              [clearable]="false"
+              [ngModel]="form.controls.workCenterId.value"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="onWorkCenterChange($event)"
+              placeholder="Select work center"
+            ></ng-select>
+            @if (hasFieldError('workCenterId')) {
+              <small class="field-error">Work center is required.</small>
+            }
+          </div>
+        } @else {
+          <div class="field-group">
+            <label for="work-center-name">Work center name</label>
+            <input
+              id="work-center-name"
+              class="text-input"
+              type="text"
+              [value]="workCenterName || 'Not selected'"
+              disabled
+            >
+          </div>
+        }
+
         <div class="field-group">
           <label for="work-order-name">Work Order Name</label>
           <input id="work-order-name" class="text-input" type="text" formControlName="name" placeholder="Acme Inc.">
@@ -55,7 +88,7 @@
           <input
             id="work-order-end-date"
             class="text-input form-control"
-            placeholder="yyyy-mm-dd"
+            placeholder="mm.dd.yyyy"
             formControlName="endDate"
             ngbDatepicker
             navigation="none"
@@ -73,7 +106,7 @@
           <input
             id="work-order-start-date"
             class="text-input form-control"
-            placeholder="yyyy-mm-dd"
+            placeholder="mm.dd.yyyy"
             formControlName="startDate"
             ngbDatepicker
             navigation="none"
@@ -93,10 +126,6 @@
         @if (overlapError) {
           <p class="panel-error">{{ overlapError }}</p>
         }
-
-        <div class="work-center-note">
-          Work center: {{ workCenterName || 'Not selected' }}
-        </div>
 
         <button type="submit" class="hidden-submit">Submit</button>
       </form>
