@@ -233,13 +233,13 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       this.timescale();
       this.selectedYear();
       this.selectedMonth();
-      queueMicrotask(() => this.centerTimelineOnToday());
+      queueMicrotask(() => this.scrollTimelineToSelectionStart());
     });
   }
 
   ngAfterViewInit(): void {
     this.bindTimelineResizeSync();
-    this.centerTimelineOnToday();
+    this.scrollTimelineToSelectionStart();
     this.bindHorizontalScrollSync();
     queueMicrotask(() => {
       const container = this.timelineScrollRef?.nativeElement;
@@ -472,8 +472,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onPanelClose(): void {
-    this.panelOpen.set(false);
-    this.panelOverlapError.set(null);
+    this.closePanel();
   }
 
   onPanelSubmit(event: WorkOrderPanelSubmitEvent): void {
@@ -482,9 +481,10 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const candidate: WorkOrderData = event.payload;
+    const candidate: WorkOrderData = this.normalizeCandidateToTimelineYear(event.payload);
+    const editingOrderId = event.existingOrderId ?? (this.panelMode() === 'edit' ? this.editingOrder()?.docId : undefined);
 
-    const conflictingOrder = this.store.findOverlap(candidate, event.existingOrderId);
+    const conflictingOrder = this.store.findOverlap(candidate, editingOrderId);
     if (conflictingOrder) {
       this.panelOverlapError.set(
         `This work order conflicts with "${conflictingOrder.data.name}" (${formatDateLong(fromIsoDate(conflictingOrder.data.startDate))} to ${formatDateLong(fromIsoDate(conflictingOrder.data.endDate))}) in the selected work center.`
@@ -497,15 +497,14 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const isUpdate = this.panelMode() === 'edit' && !!event.existingOrderId;
-    if (isUpdate && event.existingOrderId) {
-      this.store.updateWorkOrder(event.existingOrderId, candidate);
+    const isUpdate = this.panelMode() === 'edit' && !!editingOrderId;
+    if (isUpdate && editingOrderId) {
+      this.store.updateWorkOrder(editingOrderId, candidate);
     } else {
       this.store.createWorkOrder(candidate);
     }
 
-    this.panelOpen.set(false);
-    this.panelOverlapError.set(null);
+    this.closePanel();
 
     const workCenterName = this.resolveWorkCenterName(candidate.workCenterId);
     if (candidate.status === 'complete') {
@@ -889,15 +888,15 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.popoverClickAnchorEl = null;
   }
 
-  private centerTimelineOnToday(): void {
+  private scrollTimelineToSelectionStart(): void {
     const container = this.timelineScrollRef?.nativeElement;
     if (!container) {
       return;
     }
 
     const anchorDate = this.getAnchorDate();
-    const focusDate = this.timescale() === 'month' ? startOfMonth(anchorDate) : startOfWeek(anchorDate);
-    const target = this.clampPixel(this.dateToPixel(focusDate)) - container.clientWidth / 2;
+    const focusDate = this.timescale() === 'month' ? startOfMonth(anchorDate) : startOfDay(anchorDate);
+    const target = this.clampPixel(this.dateToPixel(focusDate));
     const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
     const scrollLeft = Math.min(Math.max(0, target), maxScrollLeft);
     container.scrollLeft = scrollLeft;
@@ -905,11 +904,33 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   private getAnchorDate(): Date {
-    const today = startOfDay(new Date());
-    if (this.selectedYear() === today.getFullYear() && this.selectedMonth() === today.getMonth()) {
-      return today;
-    }
     return new Date(this.selectedYear(), this.selectedMonth(), 1);
+  }
+
+  private normalizeCandidateToTimelineYear(payload: WorkOrderData): WorkOrderData {
+    const selectedTimelineYear = this.selectedYear();
+    const start = fromIsoDate(payload.startDate);
+    const end = fromIsoDate(payload.endDate);
+
+    if (start.getFullYear() === selectedTimelineYear) {
+      return payload;
+    }
+
+    const adjustedStart = new Date(selectedTimelineYear, start.getMonth(), start.getDate());
+    if (adjustedStart > end) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      startDate: toIsoDate(adjustedStart)
+    };
+  }
+
+  private closePanel(): void {
+    this.panelOpen.set(false);
+    this.panelOverlapError.set(null);
+    this.editingOrder.set(null);
   }
 
   private buildYearOptions(): number[] {

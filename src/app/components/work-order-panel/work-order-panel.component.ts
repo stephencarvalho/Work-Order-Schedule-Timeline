@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, inject } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { NgbDateParserFormatter, NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
 import { NgSelectModule } from '@ng-select/ng-select';
@@ -37,6 +37,9 @@ function isRangeValid(control: AbstractControl): ValidationErrors | null {
   styleUrl: './work-order-panel.component.scss'
 })
 export class WorkOrderPanelComponent implements OnChanges {
+  @ViewChild('startDateInput') startDateInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('endDateInput') endDateInputRef?: ElementRef<HTMLInputElement>;
+
   @Input({ required: true }) isOpen = false;
   @Input({ required: true }) mode: 'create' | 'edit' = 'create';
   @Input() workCenterName = '';
@@ -60,6 +63,7 @@ export class WorkOrderPanelComponent implements OnChanges {
   private closeAnimationTimeoutId: number | null = null;
 
   private readonly formBuilder = inject(FormBuilder);
+  private readonly dateParserFormatter = inject(NgbDateParserFormatter);
 
   readonly form = this.formBuilder.group(
     {
@@ -121,6 +125,9 @@ export class WorkOrderPanelComponent implements OnChanges {
   }
 
   onSubmit(): void {
+    this.syncDateControlFromInput('startDate', this.startDateInputRef);
+    this.syncDateControlFromInput('endDate', this.endDateInputRef);
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -256,5 +263,15 @@ export class WorkOrderPanelComponent implements OnChanges {
       month: today.getMonth() + 1,
       day: today.getDate()
     };
+  }
+
+  private syncDateControlFromInput(
+    controlName: 'startDate' | 'endDate',
+    inputRef: ElementRef<HTMLInputElement> | undefined
+  ): void {
+    const inputValue = inputRef?.nativeElement.value ?? '';
+    const parsed = this.dateParserFormatter.parse(inputValue.trim());
+    this.form.controls[controlName].setValue(parsed);
+    this.form.controls[controlName].markAsTouched();
   }
 }
