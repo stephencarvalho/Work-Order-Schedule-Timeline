@@ -1,5 +1,7 @@
 <section class="timeline-content">
-  <h1>Work Orders</h1>
+  <div class="work-order-title">
+    <h1>Work Orders</h1>
+  </div>
 
   <div class="toolbar">
     <div class="toolbar-row">
@@ -55,10 +57,18 @@
     <div class="timeline-body">
       <div class="timeline-left-pane">
         <div class="timeline-row timeline-header-row">
-          <div class="work-center-cell">Work Center</div>
+          <div class="work-center-cell work-center-header-cell">
+            <button
+              type="button"
+              class="work-center-header-button"
+              (click)="onToggleWorkCenterSort()"
+            >
+              {{ workCenterSortLabel() }}
+            </button>
+          </div>
         </div>
 
-        @for (center of workCenters(); track trackCenter($index, center)) {
+        @for (center of displayedWorkCenters(); track trackCenter($index, center)) {
           <div
             class="timeline-row"
             [class.row-hovered]="hoveredCenterId() === center.docId"
@@ -103,7 +113,7 @@
               <div class="today-guide" [style.left.px]="todayX()"></div>
             }
 
-            @for (center of workCenters(); track trackCenter($index, center)) {
+            @for (center of displayedWorkCenters(); track trackCenter($index, center)) {
             <div
               class="timeline-row"
               [class.timeline-row--first]="$first"
@@ -184,7 +194,7 @@
   [isOpen]="panelOpen()"
   [mode]="panelMode()"
   [workCenterName]="selectedWorkCenterName()"
-  [workCenters]="workCenterOptions()"
+  [workCenters]="workCenters()"
   [defaultWorkCenterId]="panelWorkCenterId()"
   [defaultStartDate]="panelDefaultStartDate()"
   [defaultEndDate]="panelDefaultEndDate()"

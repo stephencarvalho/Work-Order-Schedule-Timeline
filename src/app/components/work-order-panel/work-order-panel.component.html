@@ -1,5 +1,5 @@
-@if (isOpen) {
-  <div class="panel-overlay" (click)="onClose()">
+@if (isPanelVisible) {
+  <div class="panel-overlay" [class.panel-overlay--closing]="isPanelClosing" (click)="onClose()">
     <aside class="panel" (click)="$event.stopPropagation()">
       <header class="panel-header">
         <div>
@@ -19,9 +19,9 @@
             <ng-select
               id="work-center-name"
               class="work-center-select"
-              [items]="workCenterOptions"
-              bindLabel="label"
-              bindValue="value"
+              [items]="workCenters"
+              bindLabel="data.name"
+              bindValue="docId"
               [searchable]="false"
               [clearable]="false"
               [ngModel]="form.controls.workCenterId.value"

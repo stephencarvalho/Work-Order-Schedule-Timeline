@@ -1,4 +1,7 @@
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' });
+const LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -47,11 +50,6 @@ export function diffInMonths(later: Date, earlier: Date): number {
   return (later.getFullYear() - earlier.getFullYear()) * 12 + (later.getMonth() - earlier.getMonth());
 }
 
-export function isDateInRange(date: Date, start: Date, end: Date): boolean {
-  const value = startOfDay(date).getTime();
-  return value >= startOfDay(start).getTime() && value <= startOfDay(end).getTime();
-}
-
 export function clampDate(date: Date, start: Date, end: Date): Date {
   if (date < start) {
     return startOfDay(start);
@@ -78,17 +76,17 @@ export function fromIsoDate(value: string): Date {
 }
 
 export function formatDayLabel(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  return DAY_LABEL_FORMATTER.format(date);
 }
 
 export function formatWeekLabel(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  return DAY_LABEL_FORMATTER.format(date);
 }
 
 export function formatMonthLabel(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
+  return MONTH_LABEL_FORMATTER.format(date);
 }
 
 export function formatDateLong(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  return LONG_DATE_FORMATTER.format(date);
 }

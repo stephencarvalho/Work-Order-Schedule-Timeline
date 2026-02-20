@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { NgbDateParserFormatter, NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
 import { NgSelectModule } from '@ng-select/ng-select';
 
 import { WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
 import { fromIsoDate, toIsoDate } from '../../utils/date-utils';
+import { DATEPICKER_MONTH_OPTIONS, WORK_ORDER_STATUS_OPTIONS } from '../../work-order.constants';
 import { DotDateParserFormatter } from './dot-date-parser-formatter';
 
 export interface WorkOrderPanelSubmitEvent {
@@ -49,28 +50,14 @@ export class WorkOrderPanelComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
   @Output() submitted = new EventEmitter<WorkOrderPanelSubmitEvent>();
 
-  readonly statuses: Array<{ value: WorkOrderStatus; label: string }> = [
-    { value: 'open', label: 'Open' },
-    { value: 'in-progress', label: 'In progress' },
-    { value: 'complete', label: 'Complete' },
-    { value: 'blocked', label: 'Blocked' }
-  ];
-  readonly pickerMonthOptions: Array<{ label: string; value: number }> = [
-    { label: 'Jan', value: 1 },
-    { label: 'Feb', value: 2 },
-    { label: 'Mar', value: 3 },
-    { label: 'Apr', value: 4 },
-    { label: 'May', value: 5 },
-    { label: 'Jun', value: 6 },
-    { label: 'Jul', value: 7 },
-    { label: 'Aug', value: 8 },
-    { label: 'Sep', value: 9 },
-    { label: 'Oct', value: 10 },
-    { label: 'Nov', value: 11 },
-    { label: 'Dec', value: 12 }
-  ];
+  readonly statuses = WORK_ORDER_STATUS_OPTIONS;
+  readonly pickerMonthOptions = DATEPICKER_MONTH_OPTIONS;
   readonly pickerYearOptions = Array.from({ length: 61 }, (_, index) => 2000 + index);
-  workCenterOptions: Array<{ value: string; label: string }> = [];
+  readonly closeAnimationMs = 240;
+  isPanelVisible = false;
+  isPanelClosing = false;
+
+  private closeAnimationTimeoutId: number | null = null;
 
   private readonly formBuilder = inject(FormBuilder);
 
@@ -88,8 +75,23 @@ export class WorkOrderPanelComponent implements OnChanges {
   );
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['workCenters']) {
-      this.workCenterOptions = this.workCenters.map((center) => ({ value: center.docId, label: center.data.name }));
+    if (changes['isOpen']) {
+      if (this.closeAnimationTimeoutId !== null) {
+        window.clearTimeout(this.closeAnimationTimeoutId);
+        this.closeAnimationTimeoutId = null;
+      }
+
+      if (this.isOpen) {
+        this.isPanelVisible = true;
+        this.isPanelClosing = false;
+      } else if (this.isPanelVisible) {
+        this.isPanelClosing = true;
+        this.closeAnimationTimeoutId = window.setTimeout(() => {
+          this.isPanelVisible = false;
+          this.isPanelClosing = false;
+          this.closeAnimationTimeoutId = null;
+        }, this.closeAnimationMs);
+      }
     }
 
     if (!this.isOpen) {
@@ -104,6 +106,13 @@ export class WorkOrderPanelComponent implements OnChanges {
       changes['defaultWorkCenterId']
     ) {
       this.resetFormValues();
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.closeAnimationTimeoutId !== null) {
+      window.clearTimeout(this.closeAnimationTimeoutId);
+      this.closeAnimationTimeoutId = null;
     }
   }
 

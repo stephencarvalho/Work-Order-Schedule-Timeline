@@ -20,6 +20,10 @@ import { WorkOrderPanelComponent, WorkOrderPanelSubmitEvent } from '../work-orde
 import { Timescale, TimelineColumn, WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
 import { WorkOrderStoreService } from '../../services/work-order-store.service';
 import {
+  TIMELINE_MONTH_OPTIONS,
+  WORK_ORDER_STATUS_LABELS
+} from '../../work-order.constants';
+import {
   addDays,
   addMonths,
   clampDate,
@@ -67,32 +71,13 @@ interface PendingPopoverOpenRequest {
   clickY: number;
 }
 
+type WorkCenterSortOrder = 'default' | 'asc' | 'desc';
+
 const SCALE_OPTIONS: Array<{ value: Timescale; label: string }> = [
   { value: 'day', label: 'Day' },
   { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' }
 ];
-const MONTH_OPTIONS: Array<{ value: number; label: string }> = [
-  { value: 0, label: 'Jan' },
-  { value: 1, label: 'Feb' },
-  { value: 2, label: 'Mar' },
-  { value: 3, label: 'Apr' },
-  { value: 4, label: 'May' },
-  { value: 5, label: 'Jun' },
-  { value: 6, label: 'Jul' },
-  { value: 7, label: 'Aug' },
-  { value: 8, label: 'Sep' },
-  { value: 9, label: 'Oct' },
-  { value: 10, label: 'Nov' },
-  { value: 11, label: 'Dec' }
-];
-
-const STATUS_LABELS: Record<WorkOrderStatus, string> = {
-  open: 'Open',
-  'in-progress': 'In progress',
-  complete: 'Complete',
-  blocked: 'Blocked'
-};
 
 const STATUS_CLASS: Record<WorkOrderStatus, string> = {
   open: 'status-open',
@@ -131,9 +116,10 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private activeOrderPopover: NgbPopover | null = null;
   private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
   private readonly timelineViewportWidth = signal(0);
+  private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
 
   readonly timescaleOptions = SCALE_OPTIONS;
-  readonly monthOptions = MONTH_OPTIONS;
+  readonly monthOptions = TIMELINE_MONTH_OPTIONS;
   readonly yearOptions = this.buildYearOptions();
   readonly timescale = signal<Timescale>('day');
   readonly selectedYear = signal(new Date().getFullYear());
@@ -151,9 +137,24 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly panelDefaultEndDate = signal('');
   readonly panelOverlapError = signal<string | null>(null);
   readonly editingOrder = signal<WorkOrderDocument | null>(null);
+  readonly workCenterSortOrder = signal<WorkCenterSortOrder>('default');
 
   readonly workCenters = this.store.workCenters;
   readonly workOrdersByCenter = this.store.workOrdersByCenter;
+  readonly displayedWorkCenters = computed(() => {
+    const centers = this.workCenters();
+    const sortOrder = this.workCenterSortOrder();
+
+    if (sortOrder === 'default') {
+      return centers;
+    }
+
+    const sorted = [...centers].sort((a, b) =>
+      a.data.name.localeCompare(b.data.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    return sortOrder === 'asc' ? sorted : sorted.reverse();
+  });
 
   readonly projection = computed(() => this.buildProjection(this.timescale()));
   readonly columns = computed(() => this.projection().columns);
@@ -201,7 +202,17 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
     return this.workCenters().find((center) => center.docId === id)?.data.name ?? '';
   });
-  readonly workCenterOptions = computed(() => this.workCenters());
+
+  readonly workCenterSortLabel = computed(() => {
+    const sortOrder = this.workCenterSortOrder();
+    if (sortOrder === 'asc') {
+      return 'Work Center (A-Z)';
+    }
+    if (sortOrder === 'desc') {
+      return 'Work Center (Z-A)';
+    }
+    return 'Work Center';
+  });
 
   constructor() {
     effect(() => {
@@ -260,8 +271,17 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.selectedMonth.set(month);
   }
 
+  onToggleWorkCenterSort(): void {
+    const nextSortOrder: Record<WorkCenterSortOrder, WorkCenterSortOrder> = {
+      default: 'asc',
+      asc: 'desc',
+      desc: 'default'
+    };
+    this.workCenterSortOrder.set(nextSortOrder[this.workCenterSortOrder()]);
+  }
+
   weekdayLabel(date: Date): string {
-    return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+    return this.weekdayFormatter.format(date);
   }
 
   onTrackClick(event: MouseEvent, centerId: string): void {
@@ -473,7 +493,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   statusLabel(status: WorkOrderStatus): string {
-    return STATUS_LABELS[status];
+    return WORK_ORDER_STATUS_LABELS[status];
   }
 
   statusClass(status: WorkOrderStatus): string {
