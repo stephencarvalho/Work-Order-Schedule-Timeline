@@ -487,11 +487,11 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     const conflictingOrder = this.store.findOverlap(candidate, editingOrderId);
     if (conflictingOrder) {
       this.panelOverlapError.set(
-        `This work order conflicts with "${conflictingOrder.data.name}" (${formatDateLong(fromIsoDate(conflictingOrder.data.startDate))} to ${formatDateLong(fromIsoDate(conflictingOrder.data.endDate))}) in the selected work center.`
+        `This work order overlaps with "${conflictingOrder.data.name}" (${formatDateLong(fromIsoDate(conflictingOrder.data.startDate))} to ${formatDateLong(fromIsoDate(conflictingOrder.data.endDate))}) in the selected work center.`
       );
       this.pushNotification(
-        'Schedule Conflict',
-        `Dates conflict with "${conflictingOrder.data.name}" in ${this.resolveWorkCenterName(candidate.workCenterId)}.`,
+        'Schedule Overlap',
+        `The selected dates overlap with "${conflictingOrder.data.name}" in ${this.resolveWorkCenterName(candidate.workCenterId)}.`,
         'warning'
       );
       return;
