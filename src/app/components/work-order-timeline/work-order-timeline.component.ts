@@ -19,52 +19,31 @@ import { NgbPopover } from '@ng-bootstrap/ng-bootstrap/popover';
 import confetti from 'canvas-confetti';
 
 import { WorkOrderPanelComponent, WorkOrderPanelSubmitEvent } from '../work-order-panel/work-order-panel.component';
-import { Timescale, TimelineColumn, WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
+import { Timescale, WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
 import { WorkOrderStoreService } from '../../services/work-order-store.service';
+import { TIMELINE_MONTH_OPTIONS, WORK_ORDER_STATUS_LABELS } from '../../work-order.constants';
+import { formatDateLong, fromIsoDate, startOfDay, startOfMonth, startOfWeek, toIsoDate } from '../../utils/date-utils';
+import { PopoverPlacement, createPopoverClickAnchor, resolvePopoverPlacement } from './work-order-timeline.popover';
 import {
-  TIMELINE_MONTH_OPTIONS,
-  WORK_ORDER_STATUS_LABELS
-} from '../../work-order.constants';
+  CARD_CONTENT_GAP,
+  CARD_HORIZONTAL_PADDING,
+  HoverSlot,
+  MIN_NAME_WIDTH_WITH_STATUS,
+  PushNotification,
+  SCALE_OPTIONS,
+  STATUS_CLASS,
+  STATUS_PILL_MIN_WIDTH,
+  WorkCenterSortOrder
+} from './work-order-timeline.types';
 import {
-  addDays,
-  addMonths,
-  clampDate,
-  daysInMonth,
-  diffInDays,
-  diffInMonths,
-  endOfMonth,
-  endOfWeek,
-  formatDayLabel,
-  formatDateLong,
-  formatMonthLabel,
-  formatWeekLabel,
-  fromIsoDate,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  toIsoDate
-} from '../../utils/date-utils';
-
-interface TimelineProjection {
-  startDate: Date;
-  endDate: Date;
-  columns: TimelineColumn[];
-  width: number;
-  columnWidth: number;
-}
-
-interface OrderPlacement {
-  left: number;
-  width: number;
-}
-
-interface HoverSlot {
-  centerId: string;
-  left: number;
-  width: number;
-  startDate: Date;
-  endDate: Date;
-}
+  buildTimelineProjection,
+  clampPixel,
+  computeHoverSlot,
+  dateToPixel,
+  getCurrentColumnIndex,
+  getOrderPlacement,
+  getVisibleRange
+} from './work-order-timeline.utils';
 
 interface PendingPopoverOpenRequest {
   order: WorkOrderDocument;
@@ -72,39 +51,6 @@ interface PendingPopoverOpenRequest {
   clickX: number;
   clickY: number;
 }
-
-interface PushNotification {
-  id: number;
-  title: string;
-  message: string;
-  tone: 'default' | 'complete' | 'warning';
-}
-
-type WorkCenterSortOrder = 'default' | 'asc' | 'desc';
-
-const SCALE_OPTIONS: Array<{ value: Timescale; label: string }> = [
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' }
-];
-
-const STATUS_CLASS: Record<WorkOrderStatus, string> = {
-  open: 'status-open',
-  'in-progress': 'status-in-progress',
-  complete: 'status-complete',
-  blocked: 'status-blocked'
-};
-
-const STATUS_PILL_MIN_WIDTH: Record<WorkOrderStatus, number> = {
-  open: 51,
-  'in-progress': 87,
-  complete: 63,
-  blocked: 67
-};
-const CARD_HORIZONTAL_PADDING = 20;
-const CARD_CONTENT_GAP = 12;
-const MIN_NAME_WIDTH_WITH_STATUS = 56;
-const MONTH_VIEW_VISIBLE_COLUMNS = 6;
 
 @Component({
   selector: 'app-work-order-timeline',
@@ -117,8 +63,10 @@ const MONTH_VIEW_VISIBLE_COLUMNS = 6;
 export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   @ViewChild('timelineHorizontalScroll', { static: true }) timelineScrollRef!: ElementRef<HTMLDivElement>;
   @ViewChild('headerTrackContent', { static: true }) headerTrackContentRef!: ElementRef<HTMLDivElement>;
+
   private readonly store = inject(WorkOrderStoreService);
   private readonly ngZone = inject(NgZone);
+
   private detachHorizontalScrollSync: (() => void) | null = null;
   private timelineResizeObserver: ResizeObserver | null = null;
   private hoverClearTimeoutId: number | null = null;
@@ -127,9 +75,11 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
   private readonly notificationTimeoutIds = new Map<number, number>();
   private fireworksIntervalId: number | null = null;
+
   private readonly notificationDurationMs = 5000;
   private readonly timelineViewportWidth = signal(0);
   private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
+  private readonly todayDate = startOfDay(new Date());
 
   readonly timescaleOptions = SCALE_OPTIONS;
   readonly monthOptions = TIMELINE_MONTH_OPTIONS;
@@ -141,7 +91,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly hoveredCenterId = signal<string | null>(null);
   readonly hoveredSlot = signal<HoverSlot | null>(null);
   readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
-  readonly orderPopoverPlacement = signal<'top' | 'bottom' | 'start' | 'end'>('top');
+  readonly orderPopoverPlacement = signal<PopoverPlacement>('top');
   readonly notifications = signal<PushNotification[]>([]);
 
   readonly panelOpen = signal(false);
@@ -155,26 +105,21 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   readonly workCenters = this.store.workCenters;
   readonly workOrdersByCenter = this.store.workOrdersByCenter;
-  readonly displayedWorkCenters = computed(() => {
-    const centers = this.workCenters();
-    const sortOrder = this.workCenterSortOrder();
 
-    if (sortOrder === 'default') {
-      return centers;
-    }
+  readonly displayedWorkCenters = computed(() => this.getDisplayedWorkCenters(this.workCenters(), this.workCenterSortOrder()));
 
-    const sorted = [...centers].sort((a, b) =>
-      a.data.name.localeCompare(b.data.name, undefined, { numeric: true, sensitivity: 'base' })
-    );
+  readonly projection = computed(() =>
+    buildTimelineProjection({
+      scale: this.timescale(),
+      year: this.selectedYear(),
+      viewportWidth: this.timelineViewportWidth()
+    })
+  );
 
-    return sortOrder === 'asc' ? sorted : sorted.reverse();
-  });
-
-  readonly projection = computed(() => this.buildProjection(this.timescale()));
   readonly columns = computed(() => this.projection().columns);
   readonly timelineWidth = computed(() => this.projection().width);
-  private readonly todayDate = startOfDay(new Date());
   readonly isTodayVisible = computed(() => this.selectedYear() === this.todayDate.getFullYear());
+
   readonly todayX = computed(() => {
     const periodStart =
       this.timescale() === 'day'
@@ -183,38 +128,21 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
           ? startOfWeek(this.todayDate)
           : startOfMonth(this.todayDate);
 
-    return this.clampPixel(this.dateToPixel(periodStart));
+    return clampPixel(dateToPixel(periodStart, this.projection(), this.timescale()), this.timelineWidth());
   });
-  readonly currentColumnIndex = computed(() => {
-    if (!this.isTodayVisible()) {
-      return null;
-    }
 
-    const projection = this.projection();
-    let index = 0;
-
-    if (this.timescale() === 'day') {
-      index = diffInDays(this.todayDate, projection.startDate);
-    } else if (this.timescale() === 'week') {
-      index = Math.floor(diffInDays(startOfWeek(this.todayDate), projection.startDate) / 7);
-    } else {
-      index = diffInMonths(startOfMonth(this.todayDate), projection.startDate);
-    }
-
-    if (index < 0 || index >= this.columns().length) {
-      return null;
-    }
-
-    return index;
-  });
+  readonly currentColumnIndex = computed(() =>
+    getCurrentColumnIndex({
+      isTodayVisible: this.isTodayVisible(),
+      timescale: this.timescale(),
+      todayDate: this.todayDate,
+      projection: this.projection()
+    })
+  );
 
   readonly selectedWorkCenterName = computed(() => {
     const id = this.panelWorkCenterId();
-    if (!id) {
-      return '';
-    }
-
-    return this.workCenters().find((center) => center.docId === id)?.data.name ?? '';
+    return id ? this.resolveWorkCenterName(id) : '';
   });
 
   readonly workCenterSortLabel = computed(() => {
@@ -241,6 +169,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.bindTimelineResizeSync();
     this.scrollTimelineToSelectionStart();
     this.bindHorizontalScrollSync();
+
     queueMicrotask(() => {
       const container = this.timelineScrollRef?.nativeElement;
       if (container) {
@@ -252,17 +181,21 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.detachHorizontalScrollSync?.();
     this.timelineResizeObserver?.disconnect();
+
     if (this.hoverClearTimeoutId !== null) {
       window.clearTimeout(this.hoverClearTimeoutId);
       this.hoverClearTimeoutId = null;
     }
+
     this.activeOrderPopover?.close();
     this.activeOrderPopover = null;
     this.destroyPopoverClickAnchor();
+
     for (const timeoutId of this.notificationTimeoutIds.values()) {
       window.clearTimeout(timeoutId);
     }
     this.notificationTimeoutIds.clear();
+
     if (this.fireworksIntervalId !== null) {
       window.clearInterval(this.fireworksIntervalId);
       this.fireworksIntervalId = null;
@@ -316,6 +249,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     const rect = container.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const slot = this.computeHoverSlot(centerId, x);
+
     if (!slot) {
       this.pushNotification(
         'Busy Slot',
@@ -325,24 +259,11 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.panelMode.set('create');
-    this.panelWorkCenterId.set(centerId);
-    this.panelDefaultStartDate.set(toIsoDate(slot.startDate));
-    this.panelDefaultEndDate.set(toIsoDate(slot.endDate));
-    this.editingOrder.set(null);
-    this.panelOverlapError.set(null);
-    this.panelOpen.set(true);
+    this.openCreatePanel(centerId, slot.startDate, slot.endDate);
   }
 
   onCreateButtonClick(): void {
-    // Open panel from global Create action without a preselected center.
-    this.panelMode.set('create');
-    this.panelWorkCenterId.set(null);
-    this.panelDefaultStartDate.set('');
-    this.panelDefaultEndDate.set('');
-    this.editingOrder.set(null);
-    this.panelOverlapError.set(null);
-    this.panelOpen.set(true);
+    this.openCreatePanel(null, null, null);
   }
 
   onHoverCenter(centerId: string | null): void {
@@ -375,8 +296,6 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onTrackEnter(event: MouseEvent, centerId: string): void {
-    // Resolve the hover slot on initial entry so the "Click to add dates" hint
-    // appears immediately without requiring an extra mousemove.
     this.onTrackHover(event, centerId);
   }
 
@@ -389,7 +308,6 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
 
     if (this.activeOrderPopover && this.activeOrderPopover !== popover) {
-      // Queue the next popover request so switching work orders happens in one click.
       this.pendingPopoverOpenRequest = {
         order,
         popover,
@@ -416,14 +334,12 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onOrderPopoverHidden(popover: NgbPopover): void {
-    // Always detach hidden popover from its anchor before a later reuse.
     popover.positionTarget = undefined;
 
     if (this.activeOrderPopover === popover) {
       this.activeOrderPopover = null;
     }
 
-    // If a WO was clicked while this popover was closing, open it immediately now.
     if (this.pendingPopoverOpenRequest) {
       const request = this.pendingPopoverOpenRequest;
       this.pendingPopoverOpenRequest = null;
@@ -476,7 +392,6 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onPanelSubmit(event: WorkOrderPanelSubmitEvent): void {
-    // Use selected center from panel form so top-level Create can target any center.
     if (!event.payload.workCenterId) {
       return;
     }
@@ -531,15 +446,21 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   isOrderVisible(order: WorkOrderDocument): boolean {
-    const { start: rangeStart, end: rangeEnd } = this.getVisibleRange();
+    const range = this.getVisibleRange();
     const orderStart = fromIsoDate(order.data.startDate);
     const orderEnd = fromIsoDate(order.data.endDate);
 
-    return orderEnd >= rangeStart && orderStart <= rangeEnd;
+    return orderEnd >= range.start && orderStart <= range.end;
   }
 
   orderStyle(order: WorkOrderDocument): Record<string, string> {
-    const placement = this.getOrderPlacement(order);
+    const placement = getOrderPlacement({
+      order,
+      projection: this.projection(),
+      timelineWidth: this.timelineWidth(),
+      visibleRange: this.getVisibleRange(),
+      timescale: this.timescale()
+    });
 
     return {
       left: `${placement.left}px`,
@@ -556,9 +477,18 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   shouldShowInlineStatus(order: WorkOrderDocument): boolean {
-    const width = this.getOrderPlacement(order).width;
-    const requiredWidth = STATUS_PILL_MIN_WIDTH[order.data.status] + CARD_HORIZONTAL_PADDING + CARD_CONTENT_GAP + MIN_NAME_WIDTH_WITH_STATUS;
-    return width >= requiredWidth;
+    const placement = getOrderPlacement({
+      order,
+      projection: this.projection(),
+      timelineWidth: this.timelineWidth(),
+      visibleRange: this.getVisibleRange(),
+      timescale: this.timescale()
+    });
+
+    const requiredWidth =
+      STATUS_PILL_MIN_WIDTH[order.data.status] + CARD_HORIZONTAL_PADDING + CARD_CONTENT_GAP + MIN_NAME_WIDTH_WITH_STATUS;
+
+    return placement.width >= requiredWidth;
   }
 
   orderDateLabel(value: string): string {
@@ -567,320 +497,44 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   hoveredSlotForCenter(centerId: string): HoverSlot | null {
     const slot = this.hoveredSlot();
-    if (!slot || slot.centerId !== centerId) {
-      return null;
-    }
-    return slot;
+    return slot && slot.centerId === centerId ? slot : null;
   }
 
-  private buildProjection(scale: Timescale): TimelineProjection {
-    const yearStart = new Date(this.selectedYear(), 0, 1);
-    const yearEnd = new Date(this.selectedYear(), 11, 31);
-
-    if (scale === 'day') {
-      const columnWidth = 96;
-      const startDate = yearStart;
-      const endDate = yearEnd;
-      const columns: TimelineColumn[] = [];
-
-      let cursor = startDate;
-      let left = 0;
-      let index = 0;
-
-      while (cursor <= endDate) {
-        columns.push({
-          index,
-          label: formatDayLabel(cursor),
-          startDate: cursor,
-          endDate: cursor,
-          left,
-          width: columnWidth
-        });
-
-        cursor = addDays(cursor, 1);
-        left += columnWidth;
-        index += 1;
-      }
-
-      return {
-        startDate,
-        endDate,
-        columns,
-        width: columns.length * columnWidth,
-        columnWidth
-      };
-    }
-
-    if (scale === 'week') {
-      const columnWidth = 160;
-      const startDate = startOfWeek(yearStart);
-      const endDate = endOfWeek(yearEnd);
-      const columns: TimelineColumn[] = [];
-
-      let cursor = startDate;
-      let left = 0;
-      let index = 0;
-
-      while (cursor <= endDate) {
-        const currentStart = cursor;
-        const currentEnd = endOfWeek(cursor);
-
-        columns.push({
-          index,
-          label: `${formatWeekLabel(currentStart)} - ${formatWeekLabel(currentEnd)}`,
-          startDate: currentStart,
-          endDate: currentEnd,
-          left,
-          width: columnWidth
-        });
-
-        cursor = addDays(cursor, 7);
-        left += columnWidth;
-        index += 1;
-      }
-
-      return {
-        startDate,
-        endDate,
-        columns,
-        width: columns.length * columnWidth,
-        columnWidth
-      };
-    }
-
-    const baseColumnWidth = 171;
-    const viewportWidth = this.timelineViewportWidth();
-    const columnWidth = viewportWidth > 0 ? viewportWidth / MONTH_VIEW_VISIBLE_COLUMNS : baseColumnWidth;
-    const startDate = startOfMonth(yearStart);
-    const endDate = endOfMonth(yearEnd);
-    const columns: TimelineColumn[] = [];
-
-    let cursor = startDate;
-    let left = 0;
-    let index = 0;
-
-    while (cursor <= endDate) {
-      const currentStart = startOfMonth(cursor);
-      const currentEnd = endOfMonth(cursor);
-
-      columns.push({
-        index,
-        label: formatMonthLabel(currentStart),
-        startDate: currentStart,
-        endDate: currentEnd,
-        left,
-        width: columnWidth
-      });
-
-      cursor = startOfMonth(addMonths(cursor, 1));
-      left += columnWidth;
-      index += 1;
-    }
-
-    return {
-      startDate,
-      endDate,
-      columns,
-      width: columns.length * columnWidth,
-      columnWidth
-    };
-  }
-
-  private dateToPixel(date: Date): number {
-    const projection = this.projection();
-    const normalizedDate = clampDate(startOfDay(date), projection.startDate, addDays(projection.endDate, 1));
-
-    if (this.timescale() === 'day') {
-      return diffInDays(normalizedDate, projection.startDate) * projection.columnWidth;
-    }
-
-    if (this.timescale() === 'week') {
-      return (diffInDays(normalizedDate, projection.startDate) / 7) * projection.columnWidth;
-    }
-
-    const monthStart = startOfMonth(normalizedDate);
-    const monthIndex = diffInMonths(monthStart, projection.startDate);
-    const dayOffset = normalizedDate.getDate() - 1;
-    const monthDays = daysInMonth(normalizedDate);
-
-    return monthIndex * projection.columnWidth + (dayOffset / monthDays) * projection.columnWidth;
-  }
-
-  private pixelToDate(pixel: number): Date {
-    const projection = this.projection();
-    const safePixel = Math.min(Math.max(pixel, 0), Math.max(0, this.timelineWidth() - 1));
-
-    if (this.timescale() === 'day') {
-      const offsetDays = Math.floor(safePixel / projection.columnWidth);
-      return addDays(projection.startDate, offsetDays);
-    }
-
-    if (this.timescale() === 'week') {
-      const weekFraction = safePixel / projection.columnWidth;
-      const offsetDays = Math.floor(weekFraction * 7);
-      return addDays(projection.startDate, offsetDays);
-    }
-
-    const monthIndex = Math.floor(safePixel / projection.columnWidth);
-    const monthStart = addMonths(projection.startDate, monthIndex);
-    const ratioInMonth = (safePixel - monthIndex * projection.columnWidth) / projection.columnWidth;
-    const dayIndex = Math.min(daysInMonth(monthStart) - 1, Math.floor(ratioInMonth * daysInMonth(monthStart)));
-
-    return addDays(monthStart, dayIndex);
-  }
-
-  private clampPixel(value: number): number {
-    return Math.min(Math.max(value, 0), this.timelineWidth());
-  }
-
-  private getVisibleRange(): { start: Date; end: Date } {
-    const projection = this.projection();
-    const yearStart = new Date(this.selectedYear(), 0, 1);
-    const yearEnd = new Date(this.selectedYear(), 11, 31);
-
-    const start = projection.startDate > yearStart ? projection.startDate : yearStart;
-    const end = projection.endDate < yearEnd ? projection.endDate : yearEnd;
-
-    return { start, end };
-  }
-
-  private getOrderPlacement(order: WorkOrderDocument): OrderPlacement {
-    const { start: rangeStart, end: rangeEnd } = this.getVisibleRange();
-    const orderStart = fromIsoDate(order.data.startDate);
-    const orderEnd = fromIsoDate(order.data.endDate);
-
-    const clippedStart = orderStart < rangeStart ? rangeStart : orderStart;
-    const clippedEnd = orderEnd > rangeEnd ? rangeEnd : orderEnd;
-
-    const start = clippedStart;
-    const end = addDays(clippedEnd, 1);
-
-    let left = this.clampPixel(this.dateToPixel(start));
-    const right = this.clampPixel(this.dateToPixel(end));
-    const minWidth = this.timescale() === 'month' ? 36 : 1;
-    let width = Math.max(minWidth, right - left);
-    const maxLeft = Math.max(0, this.timelineWidth() - width);
-    left = Math.min(left, maxLeft);
-
-    // Keep each card slightly inside its computed bounds so adjacent work orders
-    // don't visually touch/overlap on shared grid boundaries.
-    const horizontalInset = 2;
-    if (width > horizontalInset * 2) {
-      left += horizontalInset;
-      width -= horizontalInset * 2;
-    }
-
-    return { left, width };
+  onNotificationClosed(id: number): void {
+    this.removeNotification(id);
   }
 
   private computeHoverSlot(centerId: string, x: number): HoverSlot | null {
-    const columns = this.columns();
-    if (!columns.length) {
-      return null;
-    }
-
-    const column = columns.find((item) => x >= item.left && x < item.left + item.width) ?? columns[columns.length - 1];
-    const { start, end } = this.resolveRangeForDate(column.startDate);
-
-    if (this.hasOrderInRange(centerId, start, end)) {
-      return null;
-    }
-
-    const inset = 5;
-    const slotWidth = Math.max(1, column.width - inset * 2);
-    const rawLeft = column.left + inset;
-    const left = Math.min(Math.max(0, rawLeft), Math.max(0, this.timelineWidth() - slotWidth));
-
-    return {
+    return computeHoverSlot({
       centerId,
-      left,
-      width: slotWidth,
-      startDate: start,
-      endDate: end
-    };
-  }
-
-  private hasOrderInRange(centerId: string, start: Date, end: Date): boolean {
-    const orders = this.getOrdersForCenter(centerId);
-    return orders.some((order) => {
-      const orderStart = fromIsoDate(order.data.startDate);
-      const orderEnd = fromIsoDate(order.data.endDate);
-      return orderEnd >= start && orderStart <= end;
+      x,
+      columns: this.columns(),
+      timelineWidth: this.timelineWidth(),
+      timescale: this.timescale(),
+      orders: this.getOrdersForCenter(centerId)
     });
   }
 
-  private resolveRangeForDate(date: Date): { start: Date; end: Date } {
-    if (this.timescale() === 'day') {
-      const day = startOfDay(date);
-      return { start: day, end: day };
-    }
-
-    if (this.timescale() === 'week') {
-      return { start: startOfWeek(date), end: endOfWeek(date) };
-    }
-
-    return { start: startOfMonth(date), end: endOfMonth(date) };
+  private openCreatePanel(centerId: string | null, start: Date | null, end: Date | null): void {
+    this.panelMode.set('create');
+    this.panelWorkCenterId.set(centerId);
+    this.panelDefaultStartDate.set(start ? toIsoDate(start) : '');
+    this.panelDefaultEndDate.set(end ? toIsoDate(end) : '');
+    this.editingOrder.set(null);
+    this.panelOverlapError.set(null);
+    this.panelOpen.set(true);
   }
 
   private openOrderPopover(order: WorkOrderDocument, popover: NgbPopover, clickX: number, clickY: number): void {
     this.activePopoverOrder.set(order);
-    this.orderPopoverPlacement.set(this.resolvePopoverPlacement(clickX, clickY));
-    popover.positionTarget = this.createPopoverClickAnchor(clickX, clickY);
+    this.orderPopoverPlacement.set(resolvePopoverPlacement(clickX, clickY));
+    this.popoverClickAnchorEl = createPopoverClickAnchor(clickX, clickY, this.popoverClickAnchorEl);
+    popover.positionTarget = this.popoverClickAnchorEl;
 
-    // Open in next macrotask so this click is not interpreted as immediate outside-click autoclose.
     window.setTimeout(() => {
       popover.open();
       this.activeOrderPopover = popover;
     }, 0);
-  }
-
-  private resolvePopoverPlacement(clickX: number, clickY: number): 'top' | 'bottom' | 'start' | 'end' {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const estimatedPopoverWidth = 320;
-    const estimatedPopoverHeight = 280;
-
-    const roomRight = viewportWidth - clickX;
-    const roomLeft = clickX;
-    const roomBottom = viewportHeight - clickY;
-    const roomTop = clickY;
-
-    if (roomRight < estimatedPopoverWidth && roomLeft >= estimatedPopoverWidth) {
-      return 'start';
-    }
-
-    if (roomLeft < estimatedPopoverWidth && roomRight >= estimatedPopoverWidth) {
-      return 'end';
-    }
-
-    if (roomBottom < estimatedPopoverHeight && roomTop >= estimatedPopoverHeight) {
-      return 'top';
-    }
-
-    if (roomTop < estimatedPopoverHeight && roomBottom >= estimatedPopoverHeight) {
-      return 'bottom';
-    }
-
-    return roomRight >= roomLeft ? 'end' : 'start';
-  }
-
-  private createPopoverClickAnchor(clickX: number, clickY: number): HTMLElement {
-    this.destroyPopoverClickAnchor();
-
-    const anchor = document.createElement('span');
-    anchor.className = 'work-order-popover-click-anchor';
-    anchor.style.position = 'fixed';
-    anchor.style.left = `${clickX}px`;
-    anchor.style.top = `${clickY}px`;
-    anchor.style.width = '1px';
-    anchor.style.height = '1px';
-    anchor.style.pointerEvents = 'none';
-    anchor.style.opacity = '0';
-    anchor.style.zIndex = '-1';
-    document.body.appendChild(anchor);
-
-    this.popoverClickAnchorEl = anchor;
-    return anchor;
   }
 
   private destroyPopoverClickAnchor(): void {
@@ -894,17 +548,13 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const anchorDate = this.getAnchorDate();
+    const anchorDate = new Date(this.selectedYear(), this.selectedMonth(), 1);
     const focusDate = this.timescale() === 'month' ? startOfMonth(anchorDate) : startOfDay(anchorDate);
-    const target = this.clampPixel(this.dateToPixel(focusDate));
+    const target = clampPixel(dateToPixel(focusDate, this.projection(), this.timescale()), this.timelineWidth());
     const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-    const scrollLeft = Math.min(Math.max(0, target), maxScrollLeft);
-    container.scrollLeft = scrollLeft;
-    this.syncHeaderScroll(container.scrollLeft);
-  }
 
-  private getAnchorDate(): Date {
-    return new Date(this.selectedYear(), this.selectedMonth(), 1);
+    container.scrollLeft = Math.min(Math.max(0, target), maxScrollLeft);
+    this.syncHeaderScroll(container.scrollLeft);
   }
 
   private normalizeCandidateToTimelineYear(payload: WorkOrderData): WorkOrderData {
@@ -950,8 +600,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     };
 
     updateViewportWidth();
-
-    this.timelineResizeObserver = new ResizeObserver(() => updateViewportWidth());
+    this.timelineResizeObserver = new ResizeObserver(updateViewportWidth);
     this.timelineResizeObserver.observe(container);
   }
 
@@ -962,9 +611,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     }
 
     this.ngZone.runOutsideAngular(() => {
-      const onScroll = () => {
-        this.syncHeaderScroll(container.scrollLeft);
-      };
+      const onScroll = () => this.syncHeaderScroll(container.scrollLeft);
 
       container.addEventListener('scroll', onScroll, { passive: true });
       this.detachHorizontalScrollSync = () => {
@@ -975,11 +622,28 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   private syncHeaderScroll(scrollLeft: number): void {
     const headerContent = this.headerTrackContentRef?.nativeElement;
-    if (!headerContent) {
-      return;
+    if (headerContent) {
+      headerContent.style.transform = `translate3d(${-scrollLeft}px, 0, 0)`;
+    }
+  }
+
+  private getVisibleRange(): { start: Date; end: Date } {
+    return getVisibleRange(this.selectedYear(), this.projection());
+  }
+
+  private getDisplayedWorkCenters(
+    centers: WorkCenterDocument[],
+    sortOrder: WorkCenterSortOrder
+  ): WorkCenterDocument[] {
+    if (sortOrder === 'default') {
+      return centers;
     }
 
-    headerContent.style.transform = `translate3d(${-scrollLeft}px, 0, 0)`;
+    const sorted = [...centers].sort((a, b) =>
+      a.data.name.localeCompare(b.data.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    return sortOrder === 'asc' ? sorted : sorted.reverse();
   }
 
   private resolveWorkCenterName(centerId: string): string {
@@ -994,16 +658,13 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.notificationTimeoutIds.set(id, timeoutId);
   }
 
-  onNotificationClosed(id: number): void {
-    this.removeNotification(id);
-  }
-
   private removeNotification(id: number): void {
     const timeoutId = this.notificationTimeoutIds.get(id);
     if (timeoutId !== undefined) {
       window.clearTimeout(timeoutId);
       this.notificationTimeoutIds.delete(id);
     }
+
     this.notifications.update((current) => current.filter((item) => item.id !== id));
   }
 
@@ -1017,13 +678,12 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       this.fireworksIntervalId = null;
     }
 
-    const duration = 5 * 1000;
+    const duration = 5_000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
 
     this.fireworksIntervalId = window.setInterval(() => {
       const timeLeft = animationEnd - Date.now();
-
       if (timeLeft <= 0) {
         if (this.fireworksIntervalId !== null) {
           window.clearInterval(this.fireworksIntervalId);

@@ -1,4 +1,5 @@
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' });
 const LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -68,11 +69,18 @@ export function toIsoDate(date: Date): string {
 }
 
 export function fromIsoDate(value: string): Date {
-  const [yearRaw, monthRaw, dayRaw] = value.split('-').map(Number);
-  if (!yearRaw || !monthRaw || !dayRaw) {
+  if (!ISO_DATE_PATTERN.test(value)) {
     return startOfDay(new Date());
   }
-  return new Date(yearRaw, monthRaw - 1, dayRaw);
+
+  const [yearRaw, monthRaw, dayRaw] = value.split('-').map(Number);
+  const candidate = new Date(yearRaw, monthRaw - 1, dayRaw);
+  const isValid =
+    candidate.getFullYear() === yearRaw &&
+    candidate.getMonth() === monthRaw - 1 &&
+    candidate.getDate() === dayRaw;
+
+  return isValid ? candidate : startOfDay(new Date());
 }
 
 export function formatDayLabel(date: Date): string {

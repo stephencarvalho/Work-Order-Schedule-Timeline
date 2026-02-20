@@ -7,6 +7,7 @@ import { fromIsoDate, toIsoDate } from '../utils/date-utils';
 const STORAGE_KEY = 'work-order-timeline-orders';
 const STORAGE_VERSION_KEY = 'work-order-timeline-orders-version';
 const STORAGE_VERSION = '8';
+const VALID_STATUSES = new Set(['open', 'in-progress', 'complete', 'blocked']);
 
 @Injectable({ providedIn: 'root' })
 export class WorkOrderStoreService {
@@ -135,7 +136,7 @@ export class WorkOrderStoreService {
   // Parses persisted payload and applies top-level validation/fallback policy.
   private parseStoredOrders(stored: string): WorkOrderDocument[] {
     try {
-      const parsed = JSON.parse(stored) as WorkOrderDocument[];
+      const parsed: unknown = JSON.parse(stored);
       if (!Array.isArray(parsed)) {
         return SAMPLE_WORK_ORDERS;
       }
@@ -152,11 +153,11 @@ export class WorkOrderStoreService {
   }
 
   // Validates shape, normalizes dates, and enforces center referential integrity.
-  private normalizeStoredOrders(parsed: WorkOrderDocument[]): WorkOrderDocument[] {
+  private normalizeStoredOrders(parsed: unknown[]): WorkOrderDocument[] {
     const knownCenterIds = new Set(SAMPLE_WORK_CENTERS.map((center) => center.docId));
     const normalized = parsed
       // Structural guard: only keep records that look like work-order documents.
-      .filter((item) => item?.docType === 'workOrder' && !!item?.docId && !!item?.data)
+      .filter((item): item is WorkOrderDocument => this.isWorkOrderDocument(item))
       .map((item) => ({
         ...item,
         data: {
@@ -179,5 +180,25 @@ export class WorkOrderStoreService {
     // base36 compacts random bytes to URL-safe lowercase alphanumerics.
     const randomPart = Math.random().toString(36).slice(2, 8);
     return `wo-${Date.now()}-${randomPart}`;
+  }
+
+  private isWorkOrderDocument(value: unknown): value is WorkOrderDocument {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    const candidate = value as Partial<WorkOrderDocument>;
+    if (candidate.docType !== 'workOrder' || typeof candidate.docId !== 'string' || !candidate.data) {
+      return false;
+    }
+
+    return (
+      typeof candidate.data.name === 'string' &&
+      typeof candidate.data.workCenterId === 'string' &&
+      typeof candidate.data.status === 'string' &&
+      VALID_STATUSES.has(candidate.data.status) &&
+      typeof candidate.data.startDate === 'string' &&
+      typeof candidate.data.endDate === 'string'
+    );
   }
 }

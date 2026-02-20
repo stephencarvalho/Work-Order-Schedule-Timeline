@@ -17,7 +17,16 @@ export class DotDateParserFormatter extends NgbDateParserFormatter {
     const day = Number(parts[1]);
     const year = Number(parts[2]);
 
-    if (!day || !month || !year) {
+    if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) {
+      return null;
+    }
+
+    if (year < 1000 || year > 9999 || month < 1 || month > 12) {
+      return null;
+    }
+
+    const maxDay = new Date(year, month, 0).getDate();
+    if (day < 1 || day > maxDay) {
       return null;
     }
 

@@ -24,9 +24,7 @@
               bindValue="docId"
               [searchable]="false"
               [clearable]="false"
-              [ngModel]="form.controls.workCenterId.value"
-              [ngModelOptions]="{ standalone: true }"
-              (ngModelChange)="onWorkCenterChange($event)"
+              formControlName="workCenterId"
               placeholder="Select work center"
             ></ng-select>
             @if (hasFieldError('workCenterId')) {

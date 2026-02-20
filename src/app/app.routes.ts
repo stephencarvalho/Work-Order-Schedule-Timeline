@@ -1,16 +1,14 @@
 import { Routes } from '@angular/router';
 
-import { LayoutComponent } from './layout/layout.component';
-import { WorkOrderTimelineComponent } from './components/work-order-timeline/work-order-timeline.component';
-
 export const routes: Routes = [
   {
     path: '',
-    component: LayoutComponent,
+    loadComponent: () => import('./layout/layout.component').then((m) => m.LayoutComponent),
     children: [
       {
         path: '',
-        component: WorkOrderTimelineComponent
+        loadComponent: () =>
+          import('./components/work-order-timeline/work-order-timeline.component').then((m) => m.WorkOrderTimelineComponent)
       }
     ]
   }

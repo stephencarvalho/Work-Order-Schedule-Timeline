@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { NgbDateParserFormatter, NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
 import { NgSelectModule } from '@ng-select/ng-select';
@@ -34,9 +34,10 @@ function isRangeValid(control: AbstractControl): ValidationErrors | null {
   imports: [CommonModule, ReactiveFormsModule, FormsModule, NgSelectModule, NgbInputDatepicker, NgbDatepickerMonth],
   providers: [{ provide: NgbDateParserFormatter, useClass: DotDateParserFormatter }],
   templateUrl: './work-order-panel.component.html',
-  styleUrl: './work-order-panel.component.scss'
+  styleUrl: './work-order-panel.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class WorkOrderPanelComponent implements OnChanges {
+export class WorkOrderPanelComponent implements OnChanges, OnDestroy {
   @ViewChild('startDateInput') startDateInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('endDateInput') endDateInputRef?: ElementRef<HTMLInputElement>;
 
@@ -173,12 +174,6 @@ export class WorkOrderPanelComponent implements OnChanges {
 
   statusChipClass(status: WorkOrderStatus): string {
     return `chip-${status}`;
-  }
-
-  onWorkCenterChange(workCenterId: string | null): void {
-    this.form.controls.workCenterId.setValue(workCenterId);
-    this.form.controls.workCenterId.markAsDirty();
-    this.form.controls.workCenterId.markAsTouched();
   }
 
   pickerMonth(datepicker: NgbDatepicker): number {
