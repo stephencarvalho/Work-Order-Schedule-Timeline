@@ -104,6 +104,7 @@ const STATUS_PILL_MIN_WIDTH: Record<WorkOrderStatus, number> = {
 const CARD_HORIZONTAL_PADDING = 20;
 const CARD_CONTENT_GAP = 12;
 const MIN_NAME_WIDTH_WITH_STATUS = 56;
+const MONTH_VIEW_VISIBLE_COLUMNS = 6;
 
 @Component({
   selector: 'app-work-order-timeline',
@@ -650,7 +651,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
     const baseColumnWidth = 171;
     const viewportWidth = this.timelineViewportWidth();
-    const columnWidth = viewportWidth > 0 ? viewportWidth / 12 : baseColumnWidth;
+    const columnWidth = viewportWidth > 0 ? viewportWidth / MONTH_VIEW_VISIBLE_COLUMNS : baseColumnWidth;
     const startDate = startOfMonth(yearStart);
     const endDate = endOfMonth(yearEnd);
     const columns: TimelineColumn[] = [];
