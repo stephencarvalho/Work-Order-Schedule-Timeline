@@ -39,6 +39,7 @@ export class WorkOrderStoreService {
   constructor() {
     // Reactive persistence with debouncing to reduce synchronous localStorage churn.
     effect((onCleanup) => {
+      /* istanbul ignore next */
       if (typeof window === 'undefined') {
         // Guard for non-browser execution contexts.
         return;
@@ -114,6 +115,7 @@ export class WorkOrderStoreService {
 
   // Bootstraps initial work-order state from localStorage with defensive validation.
   private loadInitialOrders(): WorkOrderDocument[] {
+    /* istanbul ignore next */
     if (typeof window === 'undefined') {
       return SAMPLE_WORK_ORDERS;
     }

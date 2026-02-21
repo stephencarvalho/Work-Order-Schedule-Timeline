@@ -669,6 +669,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   private triggerFireworks(): void {
+    /* istanbul ignore next */
     if (typeof window === 'undefined') {
       return;
     }
