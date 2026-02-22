@@ -59,7 +59,7 @@ npm run test:coverage
 2. Open the unit coverage report in a browser (macOS)
 
 ```bash
-open coverage/index.html
+open coverage/work-order-schedule-timeline/index.html
 ```
 
 ### E2E Tests (Playwright)
