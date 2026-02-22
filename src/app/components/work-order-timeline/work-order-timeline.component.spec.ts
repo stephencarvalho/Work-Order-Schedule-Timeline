@@ -1,5 +1,5 @@
 import { ElementRef, NgZone, computed, signal } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 
 import { WorkCenterDocument, WorkOrderData, WorkOrderDocument } from '../../models';
 import { WorkOrderStoreService } from '../../services/work-order-store.service';
@@ -219,6 +219,42 @@ describe('WorkOrderTimelineComponent', () => {
     expect(scrollSpy.calls.mostRecent().args[1]).toBe('center');
   });
 
+  it('executes queued timeline scroll callback for center and start alignments', fakeAsync(() => {
+    const localFixture = TestBed.createComponent(WorkOrderTimelineComponent);
+    const localComponent = localFixture.componentInstance;
+
+    const scrollContainer = document.createElement('div');
+    Object.defineProperty(scrollContainer, 'clientWidth', { value: 800, configurable: true });
+    Object.defineProperty(scrollContainer, 'scrollWidth', { value: 2200, configurable: true });
+    localComponent.timelineScrollRef = new ElementRef(scrollContainer);
+
+    const headerContent = document.createElement('div');
+    localComponent.headerTrackContentRef = new ElementRef(headerContent);
+
+    localFixture.detectChanges();
+
+    const scrollToDateSpy = spyOn<any>(localComponent, 'scrollTimelineToDate').and.callThrough();
+    const scrollSelectionSpy = spyOn<any>(localComponent, 'scrollTimelineToSelectionStart').and.callThrough();
+
+    flushMicrotasks();
+    scrollToDateSpy.calls.reset();
+    scrollSelectionSpy.calls.reset();
+
+    (localComponent as any).nextTimelineScrollAlignment = 'center';
+    localComponent.onSelectYear(localComponent.selectedYear() + 1);
+    localFixture.detectChanges();
+    flushMicrotasks();
+    expect(scrollToDateSpy).toHaveBeenCalledWith(jasmine.any(Date), 'center');
+
+    (localComponent as any).nextTimelineScrollAlignment = 'start';
+    localComponent.onSelectMonth((localComponent.selectedMonth() + 1) % 12);
+    localFixture.detectChanges();
+    flushMicrotasks();
+    expect(scrollSelectionSpy).toHaveBeenCalled();
+
+    localFixture.destroy();
+  }));
+
   it('handles popover card click and popover lifecycle', () => {
     const order = store.workOrders()[0];
     const popoverA = {
@@ -262,6 +298,18 @@ describe('WorkOrderTimelineComponent', () => {
     component.onOrderPopoverHidden(popoverB);
     expect(component.activePopoverOrder()).toBeNull();
     jasmine.clock().uninstall();
+  });
+
+  it('clears hover tooltip timeout when popover is shown', () => {
+    const popover = { positionTarget: undefined, close: jasmine.createSpy('close') } as any;
+    (component as any).orderHoverTooltipTimeoutId = window.setTimeout(() => undefined, 1000);
+    (component as any).pendingHoveredOrderId = 'wo-1';
+    component.hoveredOrderId.set('wo-1');
+
+    component.onOrderPopoverShown(popover);
+
+    expect((component as any).orderHoverTooltipTimeoutId).toBeNull();
+    expect(component.hoveredOrderId()).toBeNull();
   });
 
   it('edits and deletes through popover actions', () => {
@@ -430,6 +478,12 @@ describe('WorkOrderTimelineComponent', () => {
     expect(disconnectSpy).toHaveBeenCalled();
   });
 
+  it('clears order hover tooltip timeout during destroy cleanup', () => {
+    (component as any).orderHoverTooltipTimeoutId = window.setTimeout(() => undefined, 1000);
+    component.ngOnDestroy();
+    expect((component as any).orderHoverTooltipTimeoutId).toBeNull();
+  });
+
   it('handles no-op popover edit/delete when no active order', () => {
     component.activePopoverOrder.set(null);
     component.onOrderPopoverEdit();
@@ -529,6 +583,55 @@ describe('WorkOrderTimelineComponent', () => {
     Object.defineProperty(component.timelineScrollRef.nativeElement, 'scrollLeft', { value: 33, configurable: true });
     component.timelineScrollRef.nativeElement.dispatchEvent(new Event('scroll'));
     expect(component.headerTrackContentRef.nativeElement.style.transform).toContain('-33px');
+  });
+
+  it('clears hover tooltip timeout on track leave', () => {
+    component.hoveredOrderId.set('wo-1');
+    (component as any).pendingHoveredOrderId = 'wo-1';
+    (component as any).orderHoverTooltipTimeoutId = window.setTimeout(() => undefined, 1000);
+
+    component.onTrackLeave();
+
+    expect((component as any).orderHoverTooltipTimeoutId).toBeNull();
+    expect(component.hoveredOrderId()).toBeNull();
+  });
+
+  it('handles order bar hover when popover is active', () => {
+    const order = store.workOrders()[0];
+    component.activePopoverOrder.set(order);
+    component.hoveredOrderId.set(order.docId);
+    (component as any).pendingHoveredOrderId = order.docId;
+    (component as any).orderHoverTooltipTimeoutId = window.setTimeout(() => undefined, 1000);
+
+    component.onOrderBarEnter(order);
+
+    expect((component as any).pendingHoveredOrderId).toBeNull();
+    expect((component as any).orderHoverTooltipTimeoutId).toBeNull();
+    expect(component.hoveredOrderId()).toBeNull();
+  });
+
+  it('shows delayed order hover tooltip and respects leave/cancel flows', () => {
+    jasmine.clock().install();
+    const order = store.workOrders()[0];
+
+    component.onOrderBarEnter(order);
+    expect((component as any).pendingHoveredOrderId).toBe(order.docId);
+    expect(component.hoveredOrderId()).toBeNull();
+
+    jasmine.clock().tick(999);
+    expect(component.hoveredOrderId()).toBeNull();
+    jasmine.clock().tick(1);
+    expect(component.hoveredOrderId()).toBe(order.docId);
+
+    // Cover clearing an existing hover timeout before scheduling a new one.
+    (component as any).orderHoverTooltipTimeoutId = window.setTimeout(() => undefined, 1000);
+    component.onOrderBarEnter(order);
+    component.onOrderBarLeave();
+    expect((component as any).pendingHoveredOrderId).toBeNull();
+    expect((component as any).orderHoverTooltipTimeoutId).toBeNull();
+    expect(component.hoveredOrderId()).toBeNull();
+
+    jasmine.clock().uninstall();
   });
 
   it('covers fireworks end branch that clears active interval id', () => {

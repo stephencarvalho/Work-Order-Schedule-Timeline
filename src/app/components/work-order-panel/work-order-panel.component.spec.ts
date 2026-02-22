@@ -238,18 +238,20 @@ describe('WorkOrderPanelComponent', () => {
 
   it('closes on Escape only when panel is open and visible', () => {
     const onCloseSpy = spyOn(component, 'onClose');
-    const preventDefault = jasmine.createSpy('preventDefault');
+    const firstEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const secondEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const preventDefaultSpy = spyOn(secondEvent, 'preventDefault');
 
     component.isOpen = false;
     component.isPanelVisible = false;
-    component.onEscapeKey({ preventDefault } as unknown as KeyboardEvent);
+    component.onEscapeKey(firstEvent);
     expect(onCloseSpy).not.toHaveBeenCalled();
 
     component.isOpen = true;
     component.isPanelVisible = true;
     component.isPanelClosing = false;
-    component.onEscapeKey({ preventDefault } as unknown as KeyboardEvent);
-    expect(preventDefault).toHaveBeenCalled();
+    component.onEscapeKey(secondEvent);
+    expect(preventDefaultSpy).toHaveBeenCalled();
     expect(onCloseSpy).toHaveBeenCalled();
   });
 
