@@ -261,16 +261,11 @@ Relevant files:
 - `src/app/services/work-order-store.service.ts`
 
 ## Upgrades / Future Enhancements
-
-1. Today button
-
-- Add a `Today` button that jumps the user back to today in the timeline so they can quickly restore time context after navigating away.
-
-2. Filters for work centers and work orders
+1. Filters for work centers and work orders
 
 - Allow users to filter visible work centers and work orders to reduce visual overload and focus on relevant data.
 
-3. Global search
+2. Global search
 
 - Add a global search for work centers and work orders to improve findability in larger datasets.
 
