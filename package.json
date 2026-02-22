@@ -10,7 +10,7 @@
     "test": "ng test",
     "test:coverage": "ng test --watch=false --code-coverage",
     "test:e2e": "playwright test",
-    "test:e2e:coverage": "rm -rf .playwright-coverage coverage/e2e && PLAYWRIGHT_COVERAGE=1 playwright test && node scripts/generate-e2e-coverage.mjs",
+    "test:e2e:coverage": "rm -rf .playwright-coverage coverage/e2e && PLAYWRIGHT_COVERAGE=1 playwright test --workers=1 && node scripts/generate-e2e-coverage.mjs",
     "test:automation": "npm run test:coverage && npm run test:e2e"
   },
   "dependencies": {

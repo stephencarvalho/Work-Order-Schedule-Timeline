@@ -1,11 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const isCoverageRun = process.env['PLAYWRIGHT_COVERAGE'] === '1';
+
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: !isCoverageRun,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
-  workers: process.env['CI'] ? 1 : undefined,
+  workers: isCoverageRun ? 1 : process.env['CI'] ? 1 : undefined,
+  timeout: isCoverageRun ? 90_000 : 30_000,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://127.0.0.1:4200',

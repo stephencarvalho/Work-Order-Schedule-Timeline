@@ -109,7 +109,7 @@
 
   <div class="timeline-shell" #timelineScroll>
     <div class="timeline-body">
-      <div class="timeline-left-pane">
+      <div class="timeline-left-pane" data-testid="timeline-left-pane">
         <div class="timeline-row timeline-header-row">
           <div class="work-center-cell work-center-header-cell">
             <button
@@ -135,12 +135,13 @@
         }
       </div>
 
-      <div class="timeline-right-pane">
-        <div class="timeline-row timeline-header-row timeline-right-header">
+      <div class="timeline-right-pane" data-testid="timeline-right-pane">
+        <div class="timeline-row timeline-header-row timeline-right-header" data-testid="timeline-right-header">
           <div class="track-cell header-track-viewport">
             <div
               #headerTrackContent
               class="header-track-content"
+              data-testid="header-track-content"
               [style.width.px]="timelineWidth()"
             >
               @for (column of columns(); track column.index) {
@@ -162,7 +163,7 @@
           </div>
         </div>
 
-        <div class="timeline-scroll-pane" #timelineHorizontalScroll>
+        <div class="timeline-scroll-pane" data-testid="timeline-scroll-pane" #timelineHorizontalScroll>
           <div class="timeline-grid" [style.width.px]="timelineWidth()">
             @if (isTodayVisible()) {
               <div class="today-guide" [style.left.px]="todayX()"></div>
@@ -237,14 +238,14 @@
 
 <ng-template #orderPopoverTemplate>
   @if (activePopoverOrder(); as order) {
-    <div class="order-popover-content">
-      <div class="order-popover-name">{{ order.data.name }}</div>
-      <div class="order-popover-status" [ngClass]="statusClass(order.data.status)">
+    <div class="order-popover-content" data-testid="order-popover-content">
+      <div class="order-popover-name" data-testid="order-popover-name">{{ order.data.name }}</div>
+      <div class="order-popover-status" data-testid="order-popover-status" [ngClass]="statusClass(order.data.status)">
         {{ statusLabel(order.data.status) }}
       </div>
-      <div class="order-popover-dates">
-        <div><strong>Start:</strong> {{ orderDateLabel(order.data.startDate) }}</div>
-        <div><strong>End:</strong> {{ orderDateLabel(order.data.endDate) }}</div>
+      <div class="order-popover-dates" data-testid="order-popover-dates">
+        <div data-testid="order-popover-start"><strong>Start:</strong> {{ orderDateLabel(order.data.startDate) }}</div>
+        <div data-testid="order-popover-end"><strong>End:</strong> {{ orderDateLabel(order.data.endDate) }}</div>
       </div>
       <div class="order-popover-actions">
         <button type="button" data-testid="popover-edit-button" (click)="onOrderPopoverEdit()">Edit</button>
