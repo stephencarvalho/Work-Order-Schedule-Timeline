@@ -70,6 +70,8 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private detachHorizontalScrollSync: (() => void) | null = null;
   private timelineResizeObserver: ResizeObserver | null = null;
   private hoverClearTimeoutId: number | null = null;
+  private orderHoverTooltipTimeoutId: number | null = null;
+  private pendingHoveredOrderId: string | null = null;
   private popoverClickAnchorEl: HTMLElement | null = null;
   private activeOrderPopover: NgbPopover | null = null;
   private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
@@ -79,6 +81,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private timelineScrollRequestId = 0;
 
   private readonly notificationDurationMs = 5000;
+  private readonly orderHoverTooltipDelayMs = 1000;
   private readonly timelineViewportWidth = signal(0);
   private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
   private readonly todayTooltipFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -93,6 +96,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   readonly hoveredCenterId = signal<string | null>(null);
   readonly hoveredSlot = signal<HoverSlot | null>(null);
+  readonly hoveredOrderId = signal<string | null>(null);
   readonly isTodayButtonTooltipVisible = signal(false);
   readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
   readonly orderPopoverPlacement = signal<PopoverPlacement>('top');
@@ -206,6 +210,11 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     if (this.hoverClearTimeoutId !== null) {
       window.clearTimeout(this.hoverClearTimeoutId);
       this.hoverClearTimeoutId = null;
+    }
+
+    if (this.orderHoverTooltipTimeoutId !== null) {
+      window.clearTimeout(this.orderHoverTooltipTimeoutId);
+      this.orderHoverTooltipTimeoutId = null;
     }
 
     this.activeOrderPopover?.close();
@@ -341,6 +350,46 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   onTrackLeave(): void {
     this.onHoverCenter(null);
     this.hoveredSlot.set(null);
+    this.pendingHoveredOrderId = null;
+    if (this.orderHoverTooltipTimeoutId !== null) {
+      window.clearTimeout(this.orderHoverTooltipTimeoutId);
+      this.orderHoverTooltipTimeoutId = null;
+    }
+    this.hoveredOrderId.set(null);
+  }
+
+  onOrderBarEnter(order: WorkOrderDocument): void {
+    if (this.activePopoverOrder()) {
+      this.pendingHoveredOrderId = null;
+      if (this.orderHoverTooltipTimeoutId !== null) {
+        window.clearTimeout(this.orderHoverTooltipTimeoutId);
+        this.orderHoverTooltipTimeoutId = null;
+      }
+      this.hoveredOrderId.set(null);
+      return;
+    }
+
+    this.pendingHoveredOrderId = order.docId;
+    if (this.orderHoverTooltipTimeoutId !== null) {
+      window.clearTimeout(this.orderHoverTooltipTimeoutId);
+      this.orderHoverTooltipTimeoutId = null;
+    }
+
+    this.orderHoverTooltipTimeoutId = window.setTimeout(() => {
+      this.orderHoverTooltipTimeoutId = null;
+      if (this.pendingHoveredOrderId === order.docId) {
+        this.hoveredOrderId.set(order.docId);
+      }
+    }, this.orderHoverTooltipDelayMs);
+  }
+
+  onOrderBarLeave(): void {
+    this.pendingHoveredOrderId = null;
+    if (this.orderHoverTooltipTimeoutId !== null) {
+      window.clearTimeout(this.orderHoverTooltipTimeoutId);
+      this.orderHoverTooltipTimeoutId = null;
+    }
+    this.hoveredOrderId.set(null);
   }
 
   onOrderCardClick(event: MouseEvent, order: WorkOrderDocument, popover: NgbPopover): void {
@@ -370,6 +419,12 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   onOrderPopoverShown(popover: NgbPopover): void {
     this.activeOrderPopover = popover;
+    this.pendingHoveredOrderId = null;
+    if (this.orderHoverTooltipTimeoutId !== null) {
+      window.clearTimeout(this.orderHoverTooltipTimeoutId);
+      this.orderHoverTooltipTimeoutId = null;
+    }
+    this.hoveredOrderId.set(null);
   }
 
   onOrderPopoverHidden(popover: NgbPopover): void {

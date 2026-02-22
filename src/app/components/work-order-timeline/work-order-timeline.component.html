@@ -186,7 +186,7 @@
                     <div class="track-column" [style.left.px]="column.left" [style.width.px]="column.width"></div>
                   }
 
-                  @if (hoveredSlotForCenter(center.docId); as slot) {
+                  @if (!hoveredOrderId() && hoveredSlotForCenter(center.docId); as slot) {
                     <div class="add-dates-hint" [style.left.px]="slot.left + slot.width / 2">Click to add dates</div>
                     <div class="add-dates-slot" [style.left.px]="slot.left" [style.width.px]="slot.width"></div>
                   }
@@ -207,9 +207,17 @@
                         triggers="manual"
                         (shown)="onOrderPopoverShown(orderPopover)"
                         (hidden)="onOrderPopoverHidden(orderPopover)"
-                        [title]="order.data.name"
+                        (mouseenter)="onOrderBarEnter(order)"
+                        (mouseleave)="onOrderBarLeave()"
                         (click)="onOrderCardClick($event, order, orderPopover)"
                       >
+                        @if (!activePopoverOrder() && hoveredOrderId() === order.docId) {
+                          <div class="add-dates-hint order-hover-tooltip" data-testid="order-hover-tooltip" [style.left.%]="50">
+                            <div>{{ order.data.name }}</div>
+                            <div>{{ statusLabel(order.data.status) }}</div>
+                            <div>{{ orderDateLabel(order.data.startDate) }} - {{ orderDateLabel(order.data.endDate) }}</div>
+                          </div>
+                        }
                         <span class="order-name" data-testid="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
                         @if (shouldShowInlineStatus(order)) {
                           <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
