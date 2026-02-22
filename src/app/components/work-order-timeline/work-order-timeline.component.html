@@ -4,6 +4,7 @@
       <ngb-alert
         [dismissible]="true"
         type="light"
+        data-testid="timeline-notification"
         (closed)="onNotificationClosed(notification.id)"
         [ngClass]="
           notification.tone === 'complete'
@@ -29,6 +30,7 @@
           <span class="timescale-label">Timescale</span>
           <ng-select
             class="timescale-select select--timescale"
+            data-testid="timescale-select"
             [items]="timescaleOptions"
             [bindLabel]="'label'"
             [bindValue]="'value'"
@@ -44,6 +46,7 @@
           <span class="timescale-label">Year</span>
           <ng-select
             class="timescale-select select--year"
+            data-testid="year-select"
             [items]="yearOptions"
             [clearable]="false"
             [searchable]="false"
@@ -57,6 +60,7 @@
           <span class="timescale-label">Month</span>
           <ng-select
             class="timescale-select select--month"
+            data-testid="month-select"
             [items]="monthOptions"
             [bindLabel]="'label'"
             [bindValue]="'value'"
@@ -68,7 +72,7 @@
           </ng-select>
         </div>
       </div>
-      <button type="button" class="timeline-create-btn" (click)="onCreateButtonClick()">Create</button>
+      <button type="button" class="timeline-create-btn" data-testid="create-order-button" (click)="onCreateButtonClick()">Create</button>
     </div>
   </div>
 
@@ -80,6 +84,7 @@
             <button
               type="button"
               class="work-center-header-button"
+              data-testid="work-center-sort-button"
               (click)="onToggleWorkCenterSort()"
             >
               {{ workCenterSortLabel() }}
@@ -159,6 +164,7 @@
                     @if (isOrderVisible(order)) {
                       <div
                         class="work-order-card"
+                        [attr.data-testid]="'order-card-' + order.docId"
                         #orderPopover="ngbPopover"
                         [ngClass]="statusClass(order.data.status)"
                         [ngStyle]="orderStyle(order)"
@@ -173,7 +179,7 @@
                         [title]="order.data.name"
                         (click)="onOrderCardClick($event, order, orderPopover)"
                       >
-                        <span class="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
+                        <span class="order-name" data-testid="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
                         @if (shouldShowInlineStatus(order)) {
                           <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
                         }
@@ -202,8 +208,8 @@
         <div><strong>End:</strong> {{ orderDateLabel(order.data.endDate) }}</div>
       </div>
       <div class="order-popover-actions">
-        <button type="button" (click)="onOrderPopoverEdit()">Edit</button>
-        <button type="button" class="danger" (click)="onOrderPopoverDelete()">Delete</button>
+        <button type="button" data-testid="popover-edit-button" (click)="onOrderPopoverEdit()">Edit</button>
+        <button type="button" class="danger" data-testid="popover-delete-button" (click)="onOrderPopoverDelete()">Delete</button>
       </div>
     </div>
   }

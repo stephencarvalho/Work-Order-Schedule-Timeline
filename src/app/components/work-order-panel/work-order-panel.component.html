@@ -1,14 +1,14 @@
 @if (isPanelVisible) {
-  <div class="panel-overlay" [class.panel-overlay--closing]="isPanelClosing" (click)="onClose()">
-    <aside class="panel" (click)="$event.stopPropagation()">
+  <div class="panel-overlay" data-testid="work-order-panel-overlay" [class.panel-overlay--closing]="isPanelClosing" (click)="onClose()">
+    <aside class="panel" data-testid="work-order-panel" (click)="$event.stopPropagation()">
       <header class="panel-header">
         <div>
           <h2>Work Order Details</h2>
           <p>Specify the dates, name and status for this order</p>
         </div>
         <div class="header-actions">
-          <button type="button" class="btn btn-secondary" (click)="onClose()">Cancel</button>
-          <button type="button" class="btn btn-primary" (click)="onSubmit()">{{ actionLabel }}</button>
+          <button type="button" class="btn btn-secondary" data-testid="panel-cancel-button" (click)="onClose()">Cancel</button>
+          <button type="button" class="btn btn-primary" data-testid="panel-submit-button" (click)="onSubmit()">{{ actionLabel }}</button>
         </div>
       </header>
 
@@ -19,6 +19,7 @@
             <ng-select
               id="work-center-name"
               class="work-center-select"
+              data-testid="work-center-select"
               [items]="workCenters"
               bindLabel="data.name"
               bindValue="docId"
@@ -46,7 +47,7 @@
 
         <div class="field-group">
           <label for="work-order-name">Work Order Name</label>
-          <input id="work-order-name" class="text-input" type="text" formControlName="name" placeholder="Acme Inc.">
+          <input id="work-order-name" data-testid="work-order-name-input" class="text-input" type="text" formControlName="name" placeholder="Acme Inc.">
           @if (hasFieldError('name')) {
             <small class="field-error">Name is required.</small>
           }
@@ -57,6 +58,7 @@
           <ng-select
             id="work-order-status"
             class="status-select"
+            data-testid="work-order-status-select"
             [items]="statuses"
             bindLabel="label"
             bindValue="value"
@@ -85,6 +87,7 @@
           <label for="work-order-end-date">End date</label>
           <input
             id="work-order-end-date"
+            data-testid="work-order-end-date-input"
             #endDateInput
             class="text-input form-control"
             placeholder="mm.dd.yyyy"
@@ -104,6 +107,7 @@
           <label for="work-order-start-date">Start date</label>
           <input
             id="work-order-start-date"
+            data-testid="work-order-start-date-input"
             #startDateInput
             class="text-input form-control"
             placeholder="mm.dd.yyyy"
@@ -120,11 +124,11 @@
         </div>
 
         @if (form.errors?.['invalidRange']) {
-          <p class="panel-error">End date must be after start date.</p>
+          <p class="panel-error" data-testid="panel-range-error">End date must be after start date.</p>
         }
 
         @if (overlapError) {
-          <p class="panel-error">{{ overlapError }}</p>
+          <p class="panel-error" data-testid="panel-overlap-error">{{ overlapError }}</p>
         }
 
         <button type="submit" class="hidden-submit">Submit</button>

@@ -19,3 +19,6 @@ out-tsc
 
 # Test outputs
 coverage
+playwright-report
+test-results
+.playwright-coverage
