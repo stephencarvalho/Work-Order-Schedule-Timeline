@@ -1,10 +1,18 @@
 @if (isPanelVisible) {
   <div class="panel-overlay" data-testid="work-order-panel-overlay" [class.panel-overlay--closing]="isPanelClosing" (click)="onClose()">
-    <aside class="panel" data-testid="work-order-panel" (click)="$event.stopPropagation()">
+    <aside
+      class="panel"
+      data-testid="work-order-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="work-order-panel-title"
+      aria-describedby="work-order-panel-description"
+      (click)="$event.stopPropagation()"
+    >
       <header class="panel-header">
         <div>
-          <h2>Work Order Details</h2>
-          <p>Specify the dates, name and status for this order</p>
+          <h2 id="work-order-panel-title">Work Order Details</h2>
+          <p id="work-order-panel-description">Specify the dates, name and status for this order</p>
         </div>
         <div class="header-actions">
           <button type="button" class="btn btn-secondary" data-testid="panel-cancel-button" (click)="onClose()">Cancel</button>
@@ -15,11 +23,17 @@
       <form class="panel-form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
         @if (mode === 'create' && !defaultWorkCenterId) {
           <div class="field-group">
-            <label for="work-center-name">Work center name</label>
+            <label for="work-center-name-input">Work center name</label>
             <ng-select
               id="work-center-name"
               class="work-center-select"
               data-testid="work-center-select"
+              labelForId="work-center-name-input"
+              ariaLabel="Work center name"
+              [inputAttrs]="{
+                'aria-describedby': hasFieldError('workCenterId') ? 'work-center-name-error' : '',
+                'aria-invalid': hasFieldError('workCenterId') ? 'true' : 'false'
+              }"
               [items]="workCenters"
               bindLabel="data.name"
               bindValue="docId"
@@ -29,7 +43,7 @@
               placeholder="Select work center"
             ></ng-select>
             @if (hasFieldError('workCenterId')) {
-              <small class="field-error">Work center is required.</small>
+              <small id="work-center-name-error" class="field-error">Work center is required.</small>
             }
           </div>
         } @else {
@@ -48,18 +62,33 @@
 
         <div class="field-group">
           <label for="work-order-name">Work Order Name</label>
-          <input id="work-order-name" data-testid="work-order-name-input" class="text-input" type="text" formControlName="name" placeholder="Acme Inc.">
+          <input
+            id="work-order-name"
+            data-testid="work-order-name-input"
+            class="text-input"
+            type="text"
+            formControlName="name"
+            placeholder="Acme Inc."
+            [attr.aria-describedby]="hasFieldError('name') ? 'work-order-name-error' : null"
+            [attr.aria-invalid]="hasFieldError('name') ? 'true' : 'false'"
+          >
           @if (hasFieldError('name')) {
-            <small class="field-error">Name is required.</small>
+            <small id="work-order-name-error" class="field-error">Name is required.</small>
           }
         </div>
 
         <div class="field-group">
-          <label for="work-order-status">Status</label>
+          <label for="work-order-status-input">Status</label>
           <ng-select
             id="work-order-status"
             class="status-select"
             data-testid="work-order-status-select"
+            labelForId="work-order-status-input"
+            ariaLabel="Status"
+            [inputAttrs]="{
+              'aria-describedby': hasFieldError('status') ? 'work-order-status-error' : '',
+              'aria-invalid': hasFieldError('status') ? 'true' : 'false'
+            }"
             [items]="statuses"
             bindLabel="label"
             bindValue="value"
@@ -80,7 +109,7 @@
             </ng-template>
           </ng-select>
           @if (hasFieldError('status')) {
-            <small class="field-error">Status is required.</small>
+            <small id="work-order-status-error" class="field-error">Status is required.</small>
           }
         </div>
 
@@ -91,8 +120,13 @@
             data-testid="work-order-end-date-input"
             #endDateInput
             class="text-input form-control"
+            type="text"
             placeholder="mm.dd.yyyy"
             formControlName="endDate"
+            inputmode="numeric"
+            autocomplete="off"
+            [attr.aria-describedby]="hasFieldError('endDate') ? 'work-order-end-date-error' : null"
+            [attr.aria-invalid]="hasFieldError('endDate') ? 'true' : 'false'"
             ngbDatepicker
             navigation="none"
             [contentTemplate]="datepickerContent"
@@ -100,7 +134,7 @@
             (click)="endDatePicker.toggle()"
           >
           @if (hasFieldError('endDate')) {
-            <small class="field-error">End date is required.</small>
+            <small id="work-order-end-date-error" class="field-error">End date is required.</small>
           }
         </div>
 
@@ -111,8 +145,13 @@
             data-testid="work-order-start-date-input"
             #startDateInput
             class="text-input form-control"
+            type="text"
             placeholder="mm.dd.yyyy"
             formControlName="startDate"
+            inputmode="numeric"
+            autocomplete="off"
+            [attr.aria-describedby]="hasFieldError('startDate') ? 'work-order-start-date-error' : null"
+            [attr.aria-invalid]="hasFieldError('startDate') ? 'true' : 'false'"
             ngbDatepicker
             navigation="none"
             [contentTemplate]="datepickerContent"
@@ -120,7 +159,7 @@
             (click)="startDatePicker.toggle()"
           >
           @if (hasFieldError('startDate')) {
-            <small class="field-error">Start date is required.</small>
+            <small id="work-order-start-date-error" class="field-error">Start date is required.</small>
           }
         </div>
 
@@ -150,6 +189,7 @@
 
       <ng-select
         class="datepicker-nav-select datepicker-nav-select--month"
+        ariaLabel="Month"
         [items]="pickerMonthOptions"
         bindLabel="label"
         bindValue="value"
@@ -162,6 +202,7 @@
 
       <ng-select
         class="datepicker-nav-select datepicker-nav-select--year"
+        ariaLabel="Year"
         [items]="pickerYearOptions"
         [searchable]="false"
         [clearable]="false"

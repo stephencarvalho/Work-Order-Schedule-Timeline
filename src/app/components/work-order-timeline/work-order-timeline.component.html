@@ -29,10 +29,12 @@
         <!-- @upgrade: Add work center/work order filters here to reduce visual overload when many rows and cards are visible. -->
         <!-- @upgrade: Add a global search input here for work centers and work orders with keyboard-friendly result navigation. -->
         <div class="timescale-selector">
-          <span class="timescale-label">Timescale</span>
+          <label class="timescale-label" for="timescale-select-input">Timescale</label>
           <ng-select
             class="timescale-select select--timescale"
             data-testid="timescale-select"
+            labelForId="timescale-select-input"
+            ariaLabel="Timescale"
             [items]="timescaleOptions"
             [bindLabel]="'label'"
             [bindValue]="'value'"
@@ -45,10 +47,12 @@
         </div>
 
         <div class="timescale-selector selector--year">
-          <span class="timescale-label">Year</span>
+          <label class="timescale-label" for="year-select-input">Year</label>
           <ng-select
             class="timescale-select select--year"
             data-testid="year-select"
+            labelForId="year-select-input"
+            ariaLabel="Year"
             [items]="yearOptions"
             [clearable]="false"
             [searchable]="false"
@@ -59,10 +63,12 @@
         </div>
 
         <div class="timescale-selector selector--month">
-          <span class="timescale-label">Month</span>
+          <label class="timescale-label" for="month-select-input">Month</label>
           <ng-select
             class="timescale-select select--month"
             data-testid="month-select"
+            labelForId="month-select-input"
+            ariaLabel="Month"
             [items]="monthOptions"
             [bindLabel]="'label'"
             [bindValue]="'value'"
@@ -86,6 +92,7 @@
             class="timeline-today-btn"
             data-testid="today-button"
             [attr.aria-label]="todayButtonTooltip()"
+            [attr.aria-describedby]="isTodayButtonTooltipVisible() ? 'today-button-tooltip' : null"
             (click)="goToToday()"
           >
             <img src="/assets/images/calendar.png" alt="" aria-hidden="true" />
@@ -93,7 +100,12 @@
           </button>
 
           @if (isTodayButtonTooltipVisible()) {
-            <div class="add-dates-hint today-button-tooltip" data-testid="today-button-tooltip">
+            <div
+              id="today-button-tooltip"
+              class="add-dates-hint today-button-tooltip"
+              data-testid="today-button-tooltip"
+              role="tooltip"
+            >
               {{ todayButtonTooltip() }}
             </div>
           }

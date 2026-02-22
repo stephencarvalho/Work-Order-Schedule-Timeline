@@ -115,7 +115,8 @@
   transition: border-color 120ms ease, box-shadow 120ms ease;
 
   &:focus-visible {
-    outline: none;
+    outline: 2px solid #8c97ff;
+    outline-offset: 1px;
     border-color: #8c97ff;
     box-shadow: 0 0 0 1px rgba(140, 151, 255, 0.35);
   }
