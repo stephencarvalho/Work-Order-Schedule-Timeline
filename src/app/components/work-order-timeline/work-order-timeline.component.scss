@@ -53,8 +53,6 @@
 .work-order-title {
   h1 {
     margin: 0;
-    width: 142px;
-    height: 34px;
     color: rgba(3, 9, 41, 1);
     font-family: 'CircularStd-Medium', 'Circular-Std', 'Segoe UI', sans-serif;
     font-size: 24px;
@@ -406,6 +404,9 @@
   font-size: 0.875rem;
   font-weight: 400;
   line-height: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeline-header-row .work-center-cell {
@@ -438,6 +439,8 @@
 }
 
 .header-track-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -524,8 +527,6 @@
   z-index: 9999;
 }
 
-/* Keep the hint visible for the first data row where "top: -31px" can be
-   occluded by the sticky header/scroll container stacking. */
 .timeline-row.timeline-row--first .add-dates-hint {
   top: 6px;
 }
@@ -727,8 +728,12 @@
 }
 
 @media (max-width: 1024px) {
+  .toolbar-row {
+    max-width: 100%;
+  }
+
   .timeline-shell {
-    max-width: calc(100vw - 32px);
+    max-width: 100%;
   }
 
   .timeline-left-pane {

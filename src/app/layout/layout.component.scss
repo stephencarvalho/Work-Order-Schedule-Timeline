@@ -14,7 +14,24 @@
 }
 
 .app-content {
+  --bs-gutter-x: 0;
   padding-top: 2.8125rem;
   padding-left: 6.3125rem;
   padding-right: 2.5rem;
+}
+
+@media (max-width: 1024px) {
+  .app-content {
+    padding-top: 1.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-content {
+    padding-top: 1rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
 }
