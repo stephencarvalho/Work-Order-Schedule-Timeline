@@ -1,31 +1,17 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, inject } from '@angular/core';
-import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NgbDateParserFormatter, NgbDateStruct, NgbDatepicker, NgbDatepickerMonth, NgbInputDatepicker } from '@ng-bootstrap/ng-bootstrap/datepicker';
 import { NgSelectModule } from '@ng-select/ng-select';
 
 import { WorkCenterDocument, WorkOrderData, WorkOrderDocument, WorkOrderStatus } from '../../models';
-import { fromIsoDate, toIsoDate } from '../../utils/date-utils';
 import { DATEPICKER_MONTH_OPTIONS, WORK_ORDER_STATUS_OPTIONS } from '../../work-order.constants';
 import { DotDateParserFormatter } from './dot-date-parser-formatter';
+import { isoToNgbDateStruct, ngbDateStructToIso, workOrderDateRangeValidator } from './work-order-panel.form';
 
 export interface WorkOrderPanelSubmitEvent {
   payload: WorkOrderData;
   existingOrderId?: string;
-}
-
-function isRangeValid(control: AbstractControl): ValidationErrors | null {
-  const start = control.get('startDate')?.value as NgbDateStruct | null;
-  const end = control.get('endDate')?.value as NgbDateStruct | null;
-
-  if (!start || !end) {
-    return null;
-  }
-
-  const startDate = new Date(start.year, start.month - 1, start.day);
-  const endDate = new Date(end.year, end.month - 1, end.day);
-
-  return endDate >= startDate ? null : { invalidRange: true };
 }
 
 @Component({
@@ -75,7 +61,7 @@ export class WorkOrderPanelComponent implements OnChanges, OnDestroy {
       endDate: this.formBuilder.control<NgbDateStruct | null>(null, Validators.required)
     },
     {
-      validators: [isRangeValid]
+      validators: [workOrderDateRangeValidator]
     }
   );
 
@@ -153,8 +139,8 @@ export class WorkOrderPanelComponent implements OnChanges, OnDestroy {
       name: trimmedName,
       workCenterId,
       status: this.form.controls.status.value,
-      startDate: toIsoDate(new Date(start.year, start.month - 1, start.day)),
-      endDate: toIsoDate(new Date(end.year, end.month - 1, end.day)),
+      startDate: ngbDateStructToIso(start),
+      endDate: ngbDateStructToIso(end)
     };
 
     this.submitted.emit({
@@ -203,12 +189,12 @@ export class WorkOrderPanelComponent implements OnChanges, OnDestroy {
   private resetFormValues(): void {
     const resolvedStartDate =
       (this.mode === 'edit' && this.editingOrder
-        ? this.toDateStruct(this.editingOrder.data.startDate)
-        : this.toDateStruct(this.defaultStartDate)) ?? null;
+        ? isoToNgbDateStruct(this.editingOrder.data.startDate)
+        : isoToNgbDateStruct(this.defaultStartDate)) ?? null;
     const resolvedEndDate =
       (this.mode === 'edit' && this.editingOrder
-        ? this.toDateStruct(this.editingOrder.data.endDate)
-        : this.toDateStruct(this.defaultEndDate)) ?? null;
+        ? isoToNgbDateStruct(this.editingOrder.data.endDate)
+        : isoToNgbDateStruct(this.defaultEndDate)) ?? null;
 
     if (this.mode === 'edit' && this.editingOrder) {
       this.form.reset({
@@ -230,19 +216,6 @@ export class WorkOrderPanelComponent implements OnChanges, OnDestroy {
       endDate: resolvedEndDate
     });
     this.form.markAsPristine();
-  }
-
-  private toDateStruct(value: string): NgbDateStruct | null {
-    if (!value) {
-      return null;
-    }
-
-    const date = fromIsoDate(value);
-    return {
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate()
-    };
   }
 
   private getPickerAnchor(datepicker: NgbDatepicker): NgbDateStruct {
