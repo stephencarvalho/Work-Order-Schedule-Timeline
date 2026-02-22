@@ -236,6 +236,23 @@ describe('WorkOrderPanelComponent', () => {
     expect(closeSpy).toHaveBeenCalled();
   });
 
+  it('closes on Escape only when panel is open and visible', () => {
+    const onCloseSpy = spyOn(component, 'onClose');
+    const preventDefault = jasmine.createSpy('preventDefault');
+
+    component.isOpen = false;
+    component.isPanelVisible = false;
+    component.onEscapeKey({ preventDefault } as unknown as KeyboardEvent);
+    expect(onCloseSpy).not.toHaveBeenCalled();
+
+    component.isOpen = true;
+    component.isPanelVisible = true;
+    component.isPanelClosing = false;
+    component.onEscapeKey({ preventDefault } as unknown as KeyboardEvent);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(onCloseSpy).toHaveBeenCalled();
+  });
+
   it('reports field error for dirty invalid field', () => {
     component.form.controls.name.setValue('');
     component.form.controls.name.markAsDirty();

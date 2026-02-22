@@ -100,7 +100,10 @@
         </div>
       </div>
       <!-- @upgrade: Keep the top-level Create action even after filters/search are added so users can create a work order without hunting for a row first. -->
-      <button type="button" class="timeline-create-btn" data-testid="create-order-button" (click)="onCreateButtonClick()">Create</button>
+      <button type="button" class="timeline-create-btn" data-testid="create-order-button" (click)="onCreateButtonClick()">
+        <img src="/assets/images/add-event.png" alt="" aria-hidden="true" />
+        <span>New Work Order</span>
+      </button>
     </div>
   </div>
 
