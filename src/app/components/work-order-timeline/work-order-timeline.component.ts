@@ -557,6 +557,9 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.syncHeaderScroll(container.scrollLeft);
   }
 
+  // @upgrade: Add a public `goToToday()` toolbar action that sets year/month/timescale context
+  // and reuses `scrollTimelineToSelectionStart()` (or a dedicated date-scroll helper) to restore the current date view.
+
   private normalizeCandidateToTimelineYear(payload: WorkOrderData): WorkOrderData {
     const selectedTimelineYear = this.selectedYear();
     const start = fromIsoDate(payload.startDate);
