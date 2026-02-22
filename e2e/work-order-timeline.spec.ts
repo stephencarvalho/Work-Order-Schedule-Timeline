@@ -51,6 +51,41 @@ test('loads timeline and allows toolbar interactions', async ({ page }) => {
 
   await selectNgOption(page, 'month-select', 'Mar');
   await expect(page.getByTestId('month-select')).toContainText('Mar');
+
+  const todayButton = page.getByTestId('today-button');
+  const browserToday = await page.evaluate(() => ({
+    year: new Date().getFullYear(),
+    monthShort: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(new Date())
+  }));
+  const expectedTooltip = await page.evaluate(
+    () =>
+      `Go to today ${new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())}`
+  );
+  await expect(todayButton).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(todayButton).toHaveCSS('color', 'rgb(75, 87, 245)');
+  await todayButton.hover();
+  await expect(page.getByTestId('today-button-tooltip')).toHaveText(expectedTooltip);
+
+  await todayButton.click();
+  await expect(page.getByTestId('year-select')).toContainText(String(browserToday.year));
+  await expect(page.getByTestId('month-select')).toContainText(browserToday.monthShort);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      const container = document.querySelector('.timeline-scroll-pane') as HTMLDivElement | null;
+      const guide = document.querySelector('.today-guide') as HTMLDivElement | null;
+      if (!container || !guide) {
+        throw new Error('Timeline container or today guide not found.');
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const guideRect = guide.getBoundingClientRect();
+      const containerCenterX = containerRect.left + containerRect.width / 2;
+      const guideCenterX = guideRect.left + guideRect.width / 2;
+
+      return Math.abs(containerCenterX - guideCenterX);
+    });
+  }).toBeLessThanOrEqual(8);
 });
 
 test('creates a new work order and shows success notification', async ({ page }) => {

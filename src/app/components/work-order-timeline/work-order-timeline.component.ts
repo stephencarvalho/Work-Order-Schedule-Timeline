@@ -75,10 +75,13 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   private pendingPopoverOpenRequest: PendingPopoverOpenRequest | null = null;
   private readonly notificationTimeoutIds = new Map<number, number>();
   private fireworksIntervalId: number | null = null;
+  private nextTimelineScrollAlignment: 'start' | 'center' = 'start';
+  private timelineScrollRequestId = 0;
 
   private readonly notificationDurationMs = 5000;
   private readonly timelineViewportWidth = signal(0);
   private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
+  private readonly todayTooltipFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   private readonly todayDate = startOfDay(new Date());
 
   readonly timescaleOptions = SCALE_OPTIONS;
@@ -90,6 +93,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   readonly hoveredCenterId = signal<string | null>(null);
   readonly hoveredSlot = signal<HoverSlot | null>(null);
+  readonly isTodayButtonTooltipVisible = signal(false);
   readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
   readonly orderPopoverPlacement = signal<PopoverPlacement>('top');
   readonly notifications = signal<PushNotification[]>([]);
@@ -119,6 +123,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly columns = computed(() => this.projection().columns);
   readonly timelineWidth = computed(() => this.projection().width);
   readonly isTodayVisible = computed(() => this.selectedYear() === this.todayDate.getFullYear());
+  readonly todayButtonTooltip = computed(() => `Go to today ${this.todayTooltipFormatter.format(this.todayDate)}`);
 
   readonly todayX = computed(() => {
     const periodStart =
@@ -161,13 +166,29 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       this.timescale();
       this.selectedYear();
       this.selectedMonth();
-      queueMicrotask(() => this.scrollTimelineToSelectionStart());
+      const requestId = ++this.timelineScrollRequestId;
+      queueMicrotask(() => {
+        if (requestId !== this.timelineScrollRequestId) {
+          return;
+        }
+
+        const alignment = this.nextTimelineScrollAlignment;
+        this.nextTimelineScrollAlignment = 'start';
+
+        if (alignment === 'center') {
+          this.scrollTimelineToDate(this.todayDate, 'center');
+          return;
+        }
+
+        this.scrollTimelineToSelectionStart();
+      });
     });
   }
 
   ngAfterViewInit(): void {
     this.bindTimelineResizeSync();
-    this.scrollTimelineToSelectionStart();
+    this.timelineScrollRequestId++;
+    this.goToToday();
     this.bindHorizontalScrollSync();
 
     queueMicrotask(() => {
@@ -264,6 +285,24 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   onCreateButtonClick(): void {
     this.openCreatePanel(null, null, null);
+  }
+
+  goToToday(): void {
+    const yearChanged = this.selectedYear() !== this.todayDate.getFullYear();
+    const monthChanged = this.selectedMonth() !== this.todayDate.getMonth();
+
+    this.nextTimelineScrollAlignment = 'center';
+    this.selectedYear.set(this.todayDate.getFullYear());
+    this.selectedMonth.set(this.todayDate.getMonth());
+
+    if (!yearChanged && !monthChanged) {
+      this.scrollTimelineToDate(this.todayDate, 'center');
+      this.nextTimelineScrollAlignment = 'start';
+    }
+  }
+
+  onTodayButtonTooltipVisibleChange(isVisible: boolean): void {
+    this.isTodayButtonTooltipVisible.set(isVisible);
   }
 
   onHoverCenter(centerId: string | null): void {
@@ -543,22 +582,24 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   private scrollTimelineToSelectionStart(): void {
+    const anchorDate = new Date(this.selectedYear(), this.selectedMonth(), 1);
+    const focusDate = this.timescale() === 'month' ? startOfMonth(anchorDate) : startOfDay(anchorDate);
+    this.scrollTimelineToDate(focusDate, 'start');
+  }
+
+  private scrollTimelineToDate(date: Date, align: 'start' | 'center'): void {
     const container = this.timelineScrollRef?.nativeElement;
     if (!container) {
       return;
     }
 
-    const anchorDate = new Date(this.selectedYear(), this.selectedMonth(), 1);
-    const focusDate = this.timescale() === 'month' ? startOfMonth(anchorDate) : startOfDay(anchorDate);
-    const target = clampPixel(dateToPixel(focusDate, this.projection(), this.timescale()), this.timelineWidth());
+    const target = clampPixel(dateToPixel(date, this.projection(), this.timescale()), this.timelineWidth());
+    const rawScrollLeft = align === 'center' ? target - container.clientWidth / 2 : target;
     const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
 
-    container.scrollLeft = Math.min(Math.max(0, target), maxScrollLeft);
+    container.scrollLeft = Math.min(Math.max(0, rawScrollLeft), maxScrollLeft);
     this.syncHeaderScroll(container.scrollLeft);
   }
-
-  // @upgrade: Add a public `goToToday()` toolbar action that sets year/month/timescale context
-  // and reuses `scrollTimelineToSelectionStart()` (or a dedicated date-scroll helper) to restore the current date view.
 
   private normalizeCandidateToTimelineYear(payload: WorkOrderData): WorkOrderData {
     const selectedTimelineYear = this.selectedYear();

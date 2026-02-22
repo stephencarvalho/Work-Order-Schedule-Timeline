@@ -172,6 +172,53 @@ describe('WorkOrderTimelineComponent', () => {
     expect(component.panelOpen()).toBeTrue();
   });
 
+  it('renders today button tooltip with calendar icon', () => {
+    const todayButton = fixture.nativeElement.querySelector('[data-testid="today-button"]') as HTMLButtonElement;
+    const icon = todayButton.querySelector('img') as HTMLImageElement;
+    const tooltipAnchor = todayButton.parentElement as HTMLDivElement;
+    const expectedDate = new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(new Date());
+    const tooltipText = `Go to today ${expectedDate}`;
+
+    expect(todayButton).toBeTruthy();
+    expect(todayButton.textContent?.trim()).toBe('Today');
+    expect(todayButton.getAttribute('title')).toBeNull();
+    expect(todayButton.getAttribute('aria-label')).toBe(tooltipText);
+    expect(icon.getAttribute('src')).toBe('/assets/images/calendar.png');
+
+    tooltipAnchor.dispatchEvent(new Event('mouseenter'));
+    fixture.detectChanges();
+    const tooltip = fixture.nativeElement.querySelector('[data-testid="today-button-tooltip"]') as HTMLDivElement;
+    expect(tooltip?.textContent?.trim()).toBe(tooltipText);
+
+    tooltipAnchor.dispatchEvent(new Event('mouseleave'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="today-button-tooltip"]')).toBeNull();
+  });
+
+  it('goes to today and requests centered scrolling', () => {
+    component.onSelectTimescale('day');
+
+    const today = new Date();
+    component.onSelectYear(today.getFullYear());
+    component.onSelectMonth(today.getMonth());
+
+    const scrollContainer = component.timelineScrollRef.nativeElement;
+    Object.defineProperty(scrollContainer, 'scrollWidth', { value: 50000, configurable: true });
+    scrollContainer.scrollLeft = 0;
+
+    const scrollSpy = spyOn<any>(component, 'scrollTimelineToDate').and.callThrough();
+    component.goToToday();
+
+    expect(component.selectedYear()).toBe(today.getFullYear());
+    expect(component.selectedMonth()).toBe(today.getMonth());
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(scrollSpy.calls.mostRecent().args[1]).toBe('center');
+  });
+
   it('handles popover card click and popover lifecycle', () => {
     const order = store.workOrders()[0];
     const popoverA = {

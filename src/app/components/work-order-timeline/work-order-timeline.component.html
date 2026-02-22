@@ -26,7 +26,6 @@
   <div class="toolbar">
     <div class="toolbar-row">
       <div class="toolbar-controls">
-        <!-- @upgrade: Add a "Today" button in this toolbar to jump back to the current date context after users change year/month/timescale. -->
         <!-- @upgrade: Add work center/work order filters here to reduce visual overload when many rows and cards are visible. -->
         <!-- @upgrade: Add a global search input here for work centers and work orders with keyboard-friendly result navigation. -->
         <div class="timescale-selector">
@@ -73,6 +72,31 @@
             (ngModelChange)="onSelectMonth($event)"
           >
           </ng-select>
+        </div>
+
+        <div
+          class="today-button-tooltip-anchor"
+          (mouseenter)="onTodayButtonTooltipVisibleChange(true)"
+          (mouseleave)="onTodayButtonTooltipVisibleChange(false)"
+          (focusin)="onTodayButtonTooltipVisibleChange(true)"
+          (focusout)="onTodayButtonTooltipVisibleChange(false)"
+        >
+          <button
+            type="button"
+            class="timeline-today-btn"
+            data-testid="today-button"
+            [attr.aria-label]="todayButtonTooltip()"
+            (click)="goToToday()"
+          >
+            <img src="/assets/images/calendar.png" alt="" aria-hidden="true" />
+            <span>Today</span>
+          </button>
+
+          @if (isTodayButtonTooltipVisible()) {
+            <div class="add-dates-hint today-button-tooltip" data-testid="today-button-tooltip">
+              {{ todayButtonTooltip() }}
+            </div>
+          }
         </div>
       </div>
       <!-- @upgrade: Keep the top-level Create action even after filters/search are added so users can create a work order without hunting for a row first. -->
