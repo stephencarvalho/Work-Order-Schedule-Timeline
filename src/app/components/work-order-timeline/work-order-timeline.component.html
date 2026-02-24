@@ -148,14 +148,9 @@
       </div>
 
       <div class="timeline-right-pane" data-testid="timeline-right-pane">
-        <div class="timeline-row timeline-header-row timeline-right-header" data-testid="timeline-right-header">
-          <div class="track-cell header-track-viewport">
-            <div
-              #headerTrackContent
-              class="header-track-content"
-              data-testid="header-track-content"
-              [style.width.px]="timelineWidth()"
-            >
+        <div class="timeline-scroll-pane" data-testid="timeline-scroll-pane" #timelineHorizontalScroll>
+          <div class="timeline-row timeline-header-row timeline-right-header" data-testid="timeline-right-header">
+            <div class="track-cell header-track-content" data-testid="header-track-content" [style.width.px]="timelineWidth()">
               @for (column of columns(); track column.index) {
                 <div
                   class="header-column"
@@ -173,9 +168,7 @@
               }
             </div>
           </div>
-        </div>
 
-        <div class="timeline-scroll-pane" data-testid="timeline-scroll-pane" #timelineHorizontalScroll>
           <div class="timeline-grid" [style.width.px]="timelineWidth()">
             @if (isTodayVisible()) {
               <div class="today-guide" [style.left.px]="todayX()"></div>

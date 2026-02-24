@@ -345,6 +345,7 @@
 
 .timeline-right-header {
   z-index: 13;
+  border-bottom: 0;
 }
 
 .timeline-grid {
@@ -438,16 +439,11 @@
   overflow: visible;
 }
 
-.header-track-viewport {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .header-track-content {
   position: relative;
+  flex: 0 0 auto;
   height: 100%;
-  will-change: transform;
+  border-bottom: 1px solid #dde2ef;
 }
 
 .header-column {
