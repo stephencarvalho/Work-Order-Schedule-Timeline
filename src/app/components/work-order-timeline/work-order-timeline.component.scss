@@ -314,22 +314,15 @@
   height: calc(100vh - 15.3125rem);
   min-height: 32.5rem;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #d9deeb;
   background: #ffffff;
-}
-
-.timeline-scroll-pane {
-  -webkit-overflow-scrolling: touch;
 }
 
 .timeline-unified-grid {
   position: relative;
   width: fit-content;
   min-width: 100%;
-}
-
-.timeline-right-header {
-  z-index: 13;
 }
 
 .timeline-grid {
@@ -405,10 +398,6 @@
 .timeline-header-row .work-center-cell {
   color: #8c95b2;
   font-weight: 400;
-  z-index: 20;
-}
-
-.timeline-corner-cell {
   z-index: 21;
 }
 
@@ -441,7 +430,6 @@
   position: relative;
   flex: 0 0 auto;
   height: 100%;
-  z-index: 19;
 }
 
 .header-column {
