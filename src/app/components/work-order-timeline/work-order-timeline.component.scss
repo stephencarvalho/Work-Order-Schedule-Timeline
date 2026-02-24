@@ -483,10 +483,6 @@
   pointer-events: none;
 }
 
-.timeline-today-guide {
-  left: calc(var(--work-center-column-width) + var(--today-x));
-}
-
 .add-dates-slot {
   position: absolute;
   top: 5px;

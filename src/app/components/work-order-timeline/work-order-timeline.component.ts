@@ -79,6 +79,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   private readonly notificationDurationMs = 5000;
   private readonly orderHoverTooltipDelayMs = 1000;
+  readonly frozenColumnWidth = signal(0);
   private readonly timelineViewportWidth = signal(0);
   private readonly weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
   private readonly todayTooltipFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -94,6 +95,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   readonly hoveredCenterId = signal<string | null>(null);
   readonly hoveredSlot = signal<HoverSlot | null>(null);
   readonly hoveredOrderId = signal<string | null>(null);
+  readonly isCurrentHeaderTooltipVisible = signal(false);
   readonly isTodayButtonTooltipVisible = signal(false);
   readonly activePopoverOrder = signal<WorkOrderDocument | null>(null);
   readonly orderPopoverPlacement = signal<PopoverPlacement>('top');
@@ -144,6 +146,9 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
       todayDate: this.todayDate,
       projection: this.projection()
     })
+  );
+  readonly currentPeriodTooltip = computed(() =>
+    this.timescale() === 'day' ? 'Current Day' : this.timescale() === 'week' ? 'Current Week' : 'Current Month'
   );
 
   readonly selectedWorkCenterName = computed(() => {
@@ -300,6 +305,10 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
   onTodayButtonTooltipVisibleChange(isVisible: boolean): void {
     this.isTodayButtonTooltipVisible.set(isVisible);
+  }
+
+  onCurrentHeaderTooltipVisibleChange(isVisible: boolean): void {
+    this.isCurrentHeaderTooltipVisible.set(isVisible);
   }
 
   onHoverCenter(centerId: string | null): void {
@@ -682,7 +691,9 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     }
 
     const updateViewportWidth = () => {
-      this.timelineViewportWidth.set(Math.max(0, container.clientWidth - this.getFrozenColumnWidth()));
+      const frozenColumnWidth = Math.max(0, this.getFrozenColumnWidth());
+      this.frozenColumnWidth.set(frozenColumnWidth);
+      this.timelineViewportWidth.set(Math.max(0, container.clientWidth - frozenColumnWidth));
     };
 
     updateViewportWidth();

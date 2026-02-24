@@ -12,7 +12,7 @@
       <header class="panel-header">
         <div>
           <h2 id="work-order-panel-title">Work Order Details</h2>
-          <p id="work-order-panel-description">Specify the dates, name and status for this order</p>
+          <p id="work-order-panel-description">Specify the Dates, Name, and Status for This Order</p>
         </div>
         <div class="header-actions">
           <button type="button" class="btn btn-secondary" data-testid="panel-cancel-button" (click)="onClose()">Cancel</button>
@@ -23,13 +23,13 @@
       <form class="panel-form" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
         @if (mode === 'create' && !defaultWorkCenterId) {
           <div class="field-group">
-            <label for="work-center-name-input">Work center name</label>
+            <label for="work-center-name-input">Work Center Name</label>
             <ng-select
               id="work-center-name"
               class="work-center-select"
               data-testid="work-center-select"
               labelForId="work-center-name-input"
-              ariaLabel="Work center name"
+              ariaLabel="Work Center Name"
               [inputAttrs]="{
                 'aria-describedby': hasFieldError('workCenterId') ? 'work-center-name-error' : '',
                 'aria-invalid': hasFieldError('workCenterId') ? 'true' : 'false'
@@ -40,21 +40,21 @@
               [searchable]="false"
               [clearable]="false"
               formControlName="workCenterId"
-              placeholder="Select work center"
+              placeholder="Select Work Center"
             ></ng-select>
             @if (hasFieldError('workCenterId')) {
-              <small id="work-center-name-error" class="field-error">Work center is required.</small>
+              <small id="work-center-name-error" class="field-error">Work Center Is Required.</small>
             }
           </div>
         } @else {
           <div class="field-group">
-            <label for="work-center-name">Work center name</label>
+            <label for="work-center-name">Work Center Name</label>
             <input
               id="work-center-name"
               data-testid="work-center-name-display"
               class="text-input"
               type="text"
-              [value]="workCenterName || 'Not selected'"
+              [value]="workCenterName || 'Not Selected'"
               disabled
             >
           </div>
@@ -114,14 +114,14 @@
         </div>
 
         <div class="field-group">
-          <label for="work-order-end-date">End date</label>
+          <label for="work-order-end-date">End Date</label>
           <input
             id="work-order-end-date"
             data-testid="work-order-end-date-input"
             #endDateInput
             class="text-input form-control"
             type="text"
-            placeholder="mm.dd.yyyy"
+            placeholder="MM.DD.YYYY"
             formControlName="endDate"
             inputmode="numeric"
             autocomplete="off"
@@ -134,19 +134,19 @@
             (click)="endDatePicker.toggle()"
           >
           @if (hasFieldError('endDate')) {
-            <small id="work-order-end-date-error" class="field-error">End date is required.</small>
+            <small id="work-order-end-date-error" class="field-error">End Date Is Required.</small>
           }
         </div>
 
         <div class="field-group">
-          <label for="work-order-start-date">Start date</label>
+          <label for="work-order-start-date">Start Date</label>
           <input
             id="work-order-start-date"
             data-testid="work-order-start-date-input"
             #startDateInput
             class="text-input form-control"
             type="text"
-            placeholder="mm.dd.yyyy"
+            placeholder="MM.DD.YYYY"
             formControlName="startDate"
             inputmode="numeric"
             autocomplete="off"
@@ -159,12 +159,12 @@
             (click)="startDatePicker.toggle()"
           >
           @if (hasFieldError('startDate')) {
-            <small id="work-order-start-date-error" class="field-error">Start date is required.</small>
+            <small id="work-order-start-date-error" class="field-error">Start Date Is Required.</small>
           }
         </div>
 
         @if (form.errors?.['invalidRange']) {
-          <p class="panel-error" data-testid="panel-range-error">End date must be after start date.</p>
+          <p class="panel-error" data-testid="panel-range-error">End Date Must Be After Start Date.</p>
         }
 
         @if (overlapError) {

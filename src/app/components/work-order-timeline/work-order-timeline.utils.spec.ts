@@ -30,6 +30,9 @@ describe('work-order-timeline.utils', () => {
     const monthProjection = buildTimelineProjection({ scale: 'month', year: 2026, viewportWidth: 1200 });
     expect(monthProjection.columnWidth).toBeCloseTo(200, 5);
     expect(monthProjection.columns).toHaveSize(12);
+
+    const mobileMonthProjection = buildTimelineProjection({ scale: 'month', year: 2026, viewportWidth: 500 });
+    expect(mobileMonthProjection.columnWidth).toBeCloseTo(250, 5);
   });
 
   it('computes current column index for all scales and visibility checks', () => {

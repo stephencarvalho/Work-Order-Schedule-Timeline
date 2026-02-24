@@ -140,7 +140,14 @@
               [style.left.px]="column.left"
               [style.width.px]="column.width"
               [class.current-header-column]="isCurrentColumn(column.index)"
+              (mouseenter)="isCurrentColumn(column.index) && onCurrentHeaderTooltipVisibleChange(true)"
+              (mouseleave)="isCurrentColumn(column.index) && onCurrentHeaderTooltipVisibleChange(false)"
             >
+              @if (isCurrentColumn(column.index) && isCurrentHeaderTooltipVisible()) {
+                <div class="add-dates-hint" [style.left.%]="50" style="top: calc(100% + 6px)">
+                  {{ currentPeriodTooltip() }}
+                </div>
+              }
               @if (timescale() === 'day') {
                 <div class="header-label-date">{{ column.label }}</div>
                 <div class="header-label-weekday">{{ weekdayLabel(column.startDate) }}</div>
@@ -154,7 +161,7 @@
 
       <div class="timeline-grid timeline-body-rows">
         @if (isTodayVisible()) {
-          <div class="today-guide timeline-today-guide" [style.--today-x.px]="todayX()"></div>
+          <div class="today-guide" [style.left.px]="frozenColumnWidth() + todayX()"></div>
         }
 
         @for (center of displayedWorkCenters(); track trackCenter($index, center)) {

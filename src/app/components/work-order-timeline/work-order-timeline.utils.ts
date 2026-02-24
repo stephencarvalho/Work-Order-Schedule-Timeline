@@ -16,7 +16,14 @@ import {
   startOfMonth,
   startOfWeek
 } from '../../utils/date-utils';
-import { HoverSlot, OrderPlacement, TimelineProjection, MONTH_VIEW_VISIBLE_COLUMNS } from './work-order-timeline.types';
+import {
+  HoverSlot,
+  OrderPlacement,
+  TimelineProjection,
+  MONTH_VIEW_MOBILE_BREAKPOINT,
+  MONTH_VIEW_MOBILE_VISIBLE_COLUMNS,
+  MONTH_VIEW_VISIBLE_COLUMNS
+} from './work-order-timeline.types';
 
 const DAY_COLUMN_WIDTH = 96;
 const WEEK_COLUMN_WIDTH = 160;
@@ -85,7 +92,11 @@ export function buildTimelineProjection(params: BuildProjectionParams): Timeline
     };
   }
 
-  const columnWidth = viewportWidth > 0 ? viewportWidth / MONTH_VIEW_VISIBLE_COLUMNS : MONTH_BASE_COLUMN_WIDTH;
+  const visibleMonthColumns =
+    viewportWidth > 0 && viewportWidth <= MONTH_VIEW_MOBILE_BREAKPOINT
+      ? MONTH_VIEW_MOBILE_VISIBLE_COLUMNS
+      : MONTH_VIEW_VISIBLE_COLUMNS;
+  const columnWidth = viewportWidth > 0 ? viewportWidth / visibleMonthColumns : MONTH_BASE_COLUMN_WIDTH;
   const startDate = startOfMonth(yearStart);
   const endDate = endOfMonth(yearEnd);
   const columns = buildMonthColumns(startDate, endDate, columnWidth);
