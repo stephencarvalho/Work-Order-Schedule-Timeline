@@ -23,14 +23,18 @@ async function assertTodayCentered(page: Page, tolerance = 8): Promise<void> {
   await expect.poll(async () => {
     return page.evaluate(() => {
       const container = document.querySelector('[data-testid="timeline-scroll-pane"]') as HTMLDivElement | null;
+      const frozenColumn = document.querySelector('[data-testid="timeline-left-pane"]') as HTMLElement | null;
       const guide = document.querySelector('.today-guide') as HTMLDivElement | null;
-      if (!container || !guide) {
+      if (!container || !guide || !frozenColumn) {
         throw new Error('Timeline container or today guide not found.');
       }
 
       const containerRect = container.getBoundingClientRect();
+      const frozenRect = frozenColumn.getBoundingClientRect();
       const guideRect = guide.getBoundingClientRect();
-      const containerCenterX = containerRect.left + containerRect.width / 2;
+      const frozenWidth = frozenRect.width;
+      const timelineViewportWidth = containerRect.width - frozenWidth;
+      const containerCenterX = containerRect.left + frozenWidth + timelineViewportWidth / 2;
       const guideCenterX = guideRect.left + guideRect.width / 2;
 
       return Math.abs(containerCenterX - guideCenterX);
@@ -352,14 +356,17 @@ test('timeline scroll keeps left pane and headers sticky and syncs header conten
     const leftPane = document.querySelector('[data-testid=\"timeline-left-pane\"]') as HTMLElement | null;
     const header = document.querySelector('[data-testid=\"timeline-right-header\"]') as HTMLElement | null;
     const headerTrack = document.querySelector('[data-testid=\"header-track-content\"]') as HTMLElement | null;
-    if (!scrollPane || !leftPane || !header || !headerTrack) {
+    const firstBodyTrack = document.querySelector('.timeline-row:not(.timeline-header-row) .track-cell') as HTMLElement | null;
+    if (!scrollPane || !leftPane || !header || !headerTrack || !firstBodyTrack) {
       throw new Error('Timeline elements not found');
     }
     return {
       leftPaneLeft: leftPane.getBoundingClientRect().left,
       headerTop: header.getBoundingClientRect().top,
       headerPosition: getComputedStyle(header).position,
-      headerTransform: getComputedStyle(headerTrack).transform
+      headerTransform: getComputedStyle(headerTrack).transform,
+      headerTrackLeft: headerTrack.getBoundingClientRect().left,
+      bodyTrackLeft: firstBodyTrack.getBoundingClientRect().left
     };
   });
 
@@ -369,7 +376,7 @@ test('timeline scroll keeps left pane and headers sticky and syncs header conten
       throw new Error('scroll pane missing');
     }
     scrollPane.scrollLeft = 600;
-    window.scrollTo(0, 600);
+    scrollPane.scrollTop = 600;
   });
 
   await page.waitForTimeout(150);
@@ -379,24 +386,31 @@ test('timeline scroll keeps left pane and headers sticky and syncs header conten
     const leftPane = document.querySelector('[data-testid=\"timeline-left-pane\"]') as HTMLElement | null;
     const header = document.querySelector('[data-testid=\"timeline-right-header\"]') as HTMLElement | null;
     const headerTrack = document.querySelector('[data-testid=\"header-track-content\"]') as HTMLElement | null;
-    if (!scrollPane || !leftPane || !header || !headerTrack) {
+    const firstBodyTrack = document.querySelector('.timeline-row:not(.timeline-header-row) .track-cell') as HTMLElement | null;
+    if (!scrollPane || !leftPane || !header || !headerTrack || !firstBodyTrack) {
       throw new Error('Timeline elements not found');
     }
     return {
       scrollLeft: scrollPane.scrollLeft,
+      scrollTop: scrollPane.scrollTop,
       leftPaneLeft: leftPane.getBoundingClientRect().left,
       headerTop: header.getBoundingClientRect().top,
       headerPosition: getComputedStyle(header).position,
-      headerTransform: getComputedStyle(headerTrack).transform
+      headerTransform: getComputedStyle(headerTrack).transform,
+      headerTrackLeft: headerTrack.getBoundingClientRect().left,
+      bodyTrackLeft: firstBodyTrack.getBoundingClientRect().left
     };
   });
 
   expect(metricsAfter.scrollLeft).toBeGreaterThan(0);
+  expect(metricsAfter.scrollTop).toBeGreaterThan(0);
   expect(Math.abs(metricsAfter.leftPaneLeft - metricsBefore.leftPaneLeft)).toBeLessThanOrEqual(2);
   expect(metricsBefore.headerPosition).toBe('sticky');
   expect(metricsAfter.headerPosition).toBe('sticky');
   expect(Math.abs(metricsAfter.headerTop - metricsBefore.headerTop)).toBeLessThanOrEqual(10);
-  expect(metricsAfter.headerTransform).not.toBe(metricsBefore.headerTransform);
+  expect(Math.abs(metricsBefore.headerTrackLeft - metricsBefore.bodyTrackLeft)).toBeLessThanOrEqual(2);
+  expect(Math.abs(metricsAfter.headerTrackLeft - metricsAfter.bodyTrackLeft)).toBeLessThanOrEqual(2);
+  expect(metricsAfter.headerTransform).toBe(metricsBefore.headerTransform);
 });
 
 test('order hover tooltip shows after delay and is suppressed when popover is open', async ({ page }) => {

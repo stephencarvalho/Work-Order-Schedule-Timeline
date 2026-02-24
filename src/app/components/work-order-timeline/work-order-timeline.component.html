@@ -119,130 +119,104 @@
     </div>
   </div>
 
-  <div class="timeline-shell" #timelineScroll>
-    <div class="timeline-body">
-      <div class="timeline-left-pane" data-testid="timeline-left-pane">
-        <div class="timeline-row timeline-header-row">
-          <div class="work-center-cell work-center-header-cell">
-            <button
-              type="button"
-              class="work-center-header-button"
-              data-testid="work-center-sort-button"
-              (click)="onToggleWorkCenterSort()"
-            >
-              {{ workCenterSortLabel() }}
-            </button>
-          </div>
+  <div class="timeline-shell timeline-scroll-pane" data-testid="timeline-scroll-pane" #timelineHorizontalScroll>
+    <div class="timeline-unified-grid" data-testid="timeline-right-pane">
+      <div class="timeline-row timeline-header-row" data-testid="timeline-right-header">
+        <div #workCenterHeaderCell class="work-center-cell work-center-header-cell timeline-corner-cell" data-testid="timeline-left-pane">
+          <button
+            type="button"
+            class="work-center-header-button"
+            data-testid="work-center-sort-button"
+            (click)="onToggleWorkCenterSort()"
+          >
+            {{ workCenterSortLabel() }}
+          </button>
         </div>
 
+        <div class="track-cell header-track-content" data-testid="header-track-content" [style.width.px]="timelineWidth()">
+          @for (column of columns(); track column.index) {
+            <div
+              class="header-column"
+              [style.left.px]="column.left"
+              [style.width.px]="column.width"
+              [class.current-header-column]="isCurrentColumn(column.index)"
+            >
+              @if (timescale() === 'day') {
+                <div class="header-label-date">{{ column.label }}</div>
+                <div class="header-label-weekday">{{ weekdayLabel(column.startDate) }}</div>
+              } @else {
+                {{ column.label }}
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="timeline-grid timeline-body-rows">
+        @if (isTodayVisible()) {
+          <div class="today-guide timeline-today-guide" [style.--today-x.px]="todayX()"></div>
+        }
+
         @for (center of displayedWorkCenters(); track trackCenter($index, center)) {
-          <div
-            class="timeline-row"
-            [class.row-hovered]="hoveredCenterId() === center.docId"
-          >
+          <div class="timeline-row" [class.timeline-row--first]="$first" [class.row-hovered]="hoveredCenterId() === center.docId">
             <div class="work-center-cell" (mouseenter)="onHoverCenter(center.docId)" (mouseleave)="onHoverCenter(null)">
               {{ center.data.name }}
             </div>
-          </div>
-        }
-      </div>
 
-      <div class="timeline-right-pane" data-testid="timeline-right-pane">
-        <div class="timeline-row timeline-header-row timeline-right-header" data-testid="timeline-right-header">
-          <div class="track-cell header-track-viewport">
             <div
-              #headerTrackContent
-              class="header-track-content"
-              data-testid="header-track-content"
+              class="track-cell"
               [style.width.px]="timelineWidth()"
+              (mouseenter)="onTrackEnter($event, center.docId)"
+              (mousemove)="onTrackHover($event, center.docId)"
+              (mouseleave)="onTrackLeave()"
+              (click)="onTrackClick($event, center.docId)"
             >
               @for (column of columns(); track column.index) {
-                <div
-                  class="header-column"
-                  [style.left.px]="column.left"
-                  [style.width.px]="column.width"
-                  [class.current-header-column]="isCurrentColumn(column.index)"
-                >
-                  @if (timescale() === 'day') {
-                    <div class="header-label-date">{{ column.label }}</div>
-                    <div class="header-label-weekday">{{ weekdayLabel(column.startDate) }}</div>
-                  } @else {
-                    {{ column.label }}
-                  }
-                </div>
+                <div class="track-column" [style.left.px]="column.left" [style.width.px]="column.width"></div>
+              }
+
+              @if (!hoveredOrderId() && hoveredSlotForCenter(center.docId); as slot) {
+                <div class="add-dates-hint" [style.left.px]="slot.left + slot.width / 2">Click to add dates</div>
+                <div class="add-dates-slot" [style.left.px]="slot.left" [style.width.px]="slot.width"></div>
+              }
+
+              @for (order of getOrdersForCenter(center.docId); track trackOrder($index, order)) {
+                @if (isOrderVisible(order)) {
+                  <div
+                    class="work-order-card"
+                    [attr.data-testid]="'order-card-' + order.docId"
+                    #orderPopover="ngbPopover"
+                    [ngClass]="statusClass(order.data.status)"
+                    [ngStyle]="orderStyle(order)"
+                    [ngbPopover]="orderPopoverTemplate"
+                    [placement]="orderPopoverPlacement()"
+                    [popoverClass]="'work-order-popover'"
+                    [autoClose]="'outside'"
+                    [container]="'body'"
+                    triggers="manual"
+                    (shown)="onOrderPopoverShown(orderPopover)"
+                    (hidden)="onOrderPopoverHidden(orderPopover)"
+                    (mouseenter)="onOrderBarEnter(order)"
+                    (mouseleave)="onOrderBarLeave()"
+                    (click)="onOrderCardClick($event, order, orderPopover)"
+                  >
+                    @if (!activePopoverOrder() && hoveredOrderId() === order.docId) {
+                      <div class="add-dates-hint order-hover-tooltip" data-testid="order-hover-tooltip" [style.left.%]="50">
+                        <div>{{ order.data.name }}</div>
+                        <div>{{ statusLabel(order.data.status) }}</div>
+                        <div>{{ orderDateLabel(order.data.startDate) }} - {{ orderDateLabel(order.data.endDate) }}</div>
+                      </div>
+                    }
+                    <span class="order-name" data-testid="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
+                    @if (shouldShowInlineStatus(order)) {
+                      <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
+                    }
+                  </div>
+                }
               }
             </div>
           </div>
-        </div>
-
-        <div class="timeline-scroll-pane" data-testid="timeline-scroll-pane" #timelineHorizontalScroll>
-          <div class="timeline-grid" [style.width.px]="timelineWidth()">
-            @if (isTodayVisible()) {
-              <div class="today-guide" [style.left.px]="todayX()"></div>
-            }
-
-            @for (center of displayedWorkCenters(); track trackCenter($index, center)) {
-            <div
-              class="timeline-row"
-              [class.timeline-row--first]="$first"
-              [class.row-hovered]="hoveredCenterId() === center.docId"
-            >
-                <div
-                  class="track-cell"
-                  [style.width.px]="timelineWidth()"
-                  (mouseenter)="onTrackEnter($event, center.docId)"
-                  (mousemove)="onTrackHover($event, center.docId)"
-                  (mouseleave)="onTrackLeave()"
-                  (click)="onTrackClick($event, center.docId)"
-                >
-                  @for (column of columns(); track column.index) {
-                    <div class="track-column" [style.left.px]="column.left" [style.width.px]="column.width"></div>
-                  }
-
-                  @if (!hoveredOrderId() && hoveredSlotForCenter(center.docId); as slot) {
-                    <div class="add-dates-hint" [style.left.px]="slot.left + slot.width / 2">Click to add dates</div>
-                    <div class="add-dates-slot" [style.left.px]="slot.left" [style.width.px]="slot.width"></div>
-                  }
-
-                  @for (order of getOrdersForCenter(center.docId); track trackOrder($index, order)) {
-                    @if (isOrderVisible(order)) {
-                      <div
-                        class="work-order-card"
-                        [attr.data-testid]="'order-card-' + order.docId"
-                        #orderPopover="ngbPopover"
-                        [ngClass]="statusClass(order.data.status)"
-                        [ngStyle]="orderStyle(order)"
-                        [ngbPopover]="orderPopoverTemplate"
-                        [placement]="orderPopoverPlacement()"
-                        [popoverClass]="'work-order-popover'"
-                        [autoClose]="'outside'"
-                        [container]="'body'"
-                        triggers="manual"
-                        (shown)="onOrderPopoverShown(orderPopover)"
-                        (hidden)="onOrderPopoverHidden(orderPopover)"
-                        (mouseenter)="onOrderBarEnter(order)"
-                        (mouseleave)="onOrderBarLeave()"
-                        (click)="onOrderCardClick($event, order, orderPopover)"
-                      >
-                        @if (!activePopoverOrder() && hoveredOrderId() === order.docId) {
-                          <div class="add-dates-hint order-hover-tooltip" data-testid="order-hover-tooltip" [style.left.%]="50">
-                            <div>{{ order.data.name }}</div>
-                            <div>{{ statusLabel(order.data.status) }}</div>
-                            <div>{{ orderDateLabel(order.data.startDate) }} - {{ orderDateLabel(order.data.endDate) }}</div>
-                          </div>
-                        }
-                        <span class="order-name" data-testid="order-name" [class.order-name--no-status]="!shouldShowInlineStatus(order)">{{ order.data.name }}</span>
-                        @if (shouldShowInlineStatus(order)) {
-                          <span class="status-pill" [ngClass]="statusClass(order.data.status)">{{ statusLabel(order.data.status) }}</span>
-                        }
-                      </div>
-                    }
-                  }
-                </div>
-              </div>
-            }
-          </div>
-        </div>
+        }
       </div>
     </div>
   </div>

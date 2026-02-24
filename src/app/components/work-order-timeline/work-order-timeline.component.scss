@@ -308,39 +308,24 @@
 }
 
 .timeline-shell {
+  --work-center-column-width: 23.75rem;
   position: relative;
   max-width: calc(100vw - 10rem);
   height: calc(100vh - 15.3125rem);
   min-height: 32.5rem;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
   border: 1px solid #d9deeb;
   background: #ffffff;
 }
 
-.timeline-body {
-  display: flex;
-  min-width: 100%;
-}
-
-.timeline-left-pane {
-  flex: 0 0 23.75rem;
-  background: #ffffff;
-  z-index: 14;
-}
-
 .timeline-scroll-pane {
-  flex: 1 1 auto;
-  overflow-x: auto;
-  overflow-y: visible;
-  min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
-.timeline-right-pane {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+.timeline-unified-grid {
+  position: relative;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .timeline-right-header {
@@ -349,11 +334,15 @@
 
 .timeline-grid {
   position: relative;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .timeline-row {
   position: relative;
   display: flex;
+  width: fit-content;
+  min-width: 100%;
   height: 48px;
   min-height: 48px;
   border-bottom: 1px solid #dde2ef;
@@ -379,21 +368,25 @@
 .timeline-header-row {
   position: sticky;
   top: 0;
-  z-index: 12;
+  z-index: 18;
   height: 48px;
   min-height: 48px;
-  border-bottom: 1px solid #dde2ef;
+  border-bottom: 0;
 
   .work-center-cell,
   .track-cell {
     background: #ffffff;
+    border-bottom: 1px solid #dde2ef;
   }
 }
 
 .work-center-cell {
   box-sizing: border-box;
-  width: 23.75rem;
-  min-width: 23.75rem;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  width: var(--work-center-column-width);
+  min-width: var(--work-center-column-width);
   height: 100%;
   background-color: rgba(255, 255, 255, 1);
   border-right: 1px solid #dde2ef;
@@ -412,6 +405,11 @@
 .timeline-header-row .work-center-cell {
   color: #8c95b2;
   font-weight: 400;
+  z-index: 20;
+}
+
+.timeline-corner-cell {
+  z-index: 21;
 }
 
 .work-center-header-cell {
@@ -433,21 +431,17 @@
 
 .track-cell {
   position: relative;
+  flex: 0 0 auto;
   height: 100%;
   min-height: 0;
   overflow: visible;
 }
 
-.header-track-viewport {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .header-track-content {
   position: relative;
+  flex: 0 0 auto;
   height: 100%;
-  will-change: transform;
+  z-index: 19;
 }
 
 .header-column {
@@ -499,6 +493,10 @@
   background: #c8ccff;
   z-index: 5;
   pointer-events: none;
+}
+
+.timeline-today-guide {
+  left: calc(var(--work-center-column-width) + var(--today-x));
 }
 
 .add-dates-slot {
@@ -733,16 +731,11 @@
   }
 
   .timeline-shell {
+    --work-center-column-width: 17.5rem;
     max-width: 100%;
   }
 
-  .timeline-left-pane {
-    flex-basis: 17.5rem;
-  }
-
   .work-center-cell {
-    width: 17.5rem;
-    min-width: 17.5rem;
     padding: 0 16px;
   }
 }
