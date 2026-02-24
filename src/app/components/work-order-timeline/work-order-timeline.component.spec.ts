@@ -196,6 +196,25 @@ describe('WorkOrderTimelineComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="today-button-tooltip"]')).toBeNull();
   });
 
+  it('updates current period tooltip label for each timescale', () => {
+    component.onSelectTimescale('day');
+    expect(component.currentPeriodTooltip()).toBe('Current Day');
+
+    component.onSelectTimescale('week');
+    expect(component.currentPeriodTooltip()).toBe('Current Week');
+
+    component.onSelectTimescale('month');
+    expect(component.currentPeriodTooltip()).toBe('Current Month');
+  });
+
+  it('toggles current header tooltip visibility', () => {
+    component.onCurrentHeaderTooltipVisibleChange(true);
+    expect(component.isCurrentHeaderTooltipVisible()).toBeTrue();
+
+    component.onCurrentHeaderTooltipVisibleChange(false);
+    expect(component.isCurrentHeaderTooltipVisible()).toBeFalse();
+  });
+
   it('goes to today and requests centered scrolling', () => {
     component.onSelectTimescale('day');
 
@@ -578,6 +597,18 @@ describe('WorkOrderTimelineComponent', () => {
     expect(scrollPane.contains(header)).toBeTrue();
     expect(scrollPane.contains(leftHeaderCell)).toBeTrue();
     expect(getComputedStyle(header).position).toBe('sticky');
+  });
+
+  it('returns zero frozen column width when header cell is missing or invalid', () => {
+    (component as any).workCenterHeaderCellRef = undefined;
+    expect((component as any).getFrozenColumnWidth()).toBe(0);
+
+    const headerCell = document.createElement('div');
+    spyOn(headerCell, 'getBoundingClientRect').and.returnValue({ width: NaN } as DOMRect);
+    Object.defineProperty(headerCell, 'offsetWidth', { value: NaN, configurable: true });
+    (component as any).workCenterHeaderCellRef = new ElementRef(headerCell);
+
+    expect((component as any).getFrozenColumnWidth()).toBe(0);
   });
 
   it('clears hover tooltip timeout on track leave', () => {
