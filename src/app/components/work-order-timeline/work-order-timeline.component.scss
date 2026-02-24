@@ -309,18 +309,17 @@
 
 .timeline-shell {
   --work-center-column-width: 23.75rem;
-  position: relative;
   max-width: calc(100vw - 10rem);
   height: calc(100vh - 15.3125rem);
   min-height: 32.5rem;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid #d9deeb;
   background: #ffffff;
 }
 
 .timeline-unified-grid {
-  position: relative;
   width: fit-content;
   min-width: 100%;
 }
@@ -328,7 +327,6 @@
 .timeline-grid {
   position: relative;
   width: fit-content;
-  min-width: 100%;
 }
 
 .timeline-row {
@@ -536,6 +534,10 @@
   padding: 8px 10px;
   z-index: 6;
   cursor: pointer;
+}
+
+.track-cell {
+  touch-action: pan-x pan-y;
 }
 
 .order-name {
