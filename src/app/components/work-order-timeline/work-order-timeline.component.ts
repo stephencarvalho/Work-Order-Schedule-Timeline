@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  NgZone,
   OnDestroy,
   computed,
   effect,
@@ -61,9 +62,12 @@ interface PendingPopoverOpenRequest {
 })
 export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
   @ViewChild('timelineHorizontalScroll', { static: true }) timelineScrollRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('headerTrackContent', { static: true }) headerTrackContentRef!: ElementRef<HTMLDivElement>;
 
   private readonly store = inject(WorkOrderStoreService);
+  private readonly ngZone = inject(NgZone);
 
+  private detachHorizontalScrollSync: (() => void) | null = null;
   private timelineResizeObserver: ResizeObserver | null = null;
   private hoverClearTimeoutId: number | null = null;
   private orderHoverTooltipTimeoutId: number | null = null;
@@ -189,9 +193,18 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     this.bindTimelineResizeSync();
     this.timelineScrollRequestId++;
     this.goToToday();
+    this.bindHorizontalScrollSync();
+
+    queueMicrotask(() => {
+      const container = this.timelineScrollRef?.nativeElement;
+      if (container) {
+        this.syncHeaderScroll(container.scrollLeft);
+      }
+    });
   }
 
   ngOnDestroy(): void {
+    this.detachHorizontalScrollSync?.();
     this.timelineResizeObserver?.disconnect();
 
     if (this.hoverClearTimeoutId !== null) {
@@ -640,6 +653,7 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
     const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
 
     container.scrollLeft = Math.min(Math.max(0, rawScrollLeft), maxScrollLeft);
+    this.syncHeaderScroll(container.scrollLeft);
   }
 
   private normalizeCandidateToTimelineYear(payload: WorkOrderData): WorkOrderData {
@@ -681,11 +695,35 @@ export class WorkOrderTimelineComponent implements AfterViewInit, OnDestroy {
 
     const updateViewportWidth = () => {
       this.timelineViewportWidth.set(container.clientWidth);
+      this.syncHeaderScroll(container.scrollLeft);
     };
 
     updateViewportWidth();
     this.timelineResizeObserver = new ResizeObserver(updateViewportWidth);
     this.timelineResizeObserver.observe(container);
+  }
+
+  private bindHorizontalScrollSync(): void {
+    const container = this.timelineScrollRef?.nativeElement;
+    if (!container) {
+      return;
+    }
+
+    this.ngZone.runOutsideAngular(() => {
+      const onScroll = () => this.syncHeaderScroll(container.scrollLeft);
+
+      container.addEventListener('scroll', onScroll, { passive: true });
+      this.detachHorizontalScrollSync = () => {
+        container.removeEventListener('scroll', onScroll);
+      };
+    });
+  }
+
+  private syncHeaderScroll(scrollLeft: number): void {
+    const headerContent = this.headerTrackContentRef?.nativeElement;
+    if (headerContent) {
+      headerContent.style.transform = `translate3d(${-scrollLeft}px, 0, 0)`;
+    }
   }
 
   private getVisibleRange(): { start: Date; end: Date } {

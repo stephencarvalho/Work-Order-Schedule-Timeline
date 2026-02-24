@@ -1,4 +1,4 @@
-import { ElementRef, computed, signal } from '@angular/core';
+import { ElementRef, NgZone, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 
 import { WorkCenterDocument, WorkOrderData, WorkOrderDocument } from '../../models';
@@ -75,6 +75,9 @@ describe('WorkOrderTimelineComponent', () => {
     Object.defineProperty(scrollContainer, 'clientWidth', { value: 800, configurable: true });
     Object.defineProperty(scrollContainer, 'scrollWidth', { value: 2200, configurable: true });
     component.timelineScrollRef = new ElementRef(scrollContainer);
+
+    const headerContent = document.createElement('div');
+    component.headerTrackContentRef = new ElementRef(headerContent);
 
     fixture.detectChanges();
   });
@@ -224,6 +227,9 @@ describe('WorkOrderTimelineComponent', () => {
     Object.defineProperty(scrollContainer, 'clientWidth', { value: 800, configurable: true });
     Object.defineProperty(scrollContainer, 'scrollWidth', { value: 2200, configurable: true });
     localComponent.timelineScrollRef = new ElementRef(scrollContainer);
+
+    const headerContent = document.createElement('div');
+    localComponent.headerTrackContentRef = new ElementRef(headerContent);
 
     localFixture.detectChanges();
 
@@ -420,7 +426,10 @@ describe('WorkOrderTimelineComponent', () => {
     expect(component.hoveredSlotForCenter('wc-002')).toBeNull();
   });
 
-  it('handles notification close path', () => {
+  it('syncs header scroll and notification close path', () => {
+    (component as any).syncHeaderScroll(20);
+    expect(component.headerTrackContentRef.nativeElement.style.transform).toContain('-20px');
+
     const removeSpy = spyOn<any>(component, 'removeNotification').and.callThrough();
     component['notifications'].set([{ id: 1, title: 'A', message: 'B', tone: 'default' }]);
     component.onNotificationClosed(1);
@@ -431,6 +440,7 @@ describe('WorkOrderTimelineComponent', () => {
     const originalTimelineRef = component.timelineScrollRef;
     (component as any).timelineScrollRef = undefined;
     (component as any).scrollTimelineToSelectionStart();
+    (component as any).bindHorizontalScrollSync();
 
     const originalResize = (window as any).ResizeObserver;
     (window as any).ResizeObserver = undefined;
@@ -442,6 +452,9 @@ describe('WorkOrderTimelineComponent', () => {
   });
 
   it('handles ngAfterViewInit and ngOnDestroy cleanup', () => {
+    const zone = TestBed.inject(NgZone);
+    spyOn(zone, 'runOutsideAngular').and.callFake((fn: any) => fn());
+
     const observerSpy = jasmine.createSpy('observe');
     const disconnectSpy = jasmine.createSpy('disconnect');
     (window as any).ResizeObserver = class {
@@ -565,13 +578,11 @@ describe('WorkOrderTimelineComponent', () => {
     expect(setIntervalSpy).toHaveBeenCalled();
   });
 
-  it('renders header inside the horizontal scroll pane for native sync', () => {
-    const scrollPane = fixture.nativeElement.querySelector('[data-testid="timeline-scroll-pane"]') as HTMLElement;
-    const header = fixture.nativeElement.querySelector('[data-testid="timeline-right-header"]') as HTMLElement;
-
-    expect(scrollPane).toBeTruthy();
-    expect(header).toBeTruthy();
-    expect(scrollPane.contains(header)).toBeTrue();
+  it('executes horizontal scroll sync callback', () => {
+    component.ngAfterViewInit();
+    Object.defineProperty(component.timelineScrollRef.nativeElement, 'scrollLeft', { value: 33, configurable: true });
+    component.timelineScrollRef.nativeElement.dispatchEvent(new Event('scroll'));
+    expect(component.headerTrackContentRef.nativeElement.style.transform).toContain('-33px');
   });
 
   it('clears hover tooltip timeout on track leave', () => {
